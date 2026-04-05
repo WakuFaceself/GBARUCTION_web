@@ -4,6 +4,7 @@ import {
   saveDraftAdminContentAction,
 } from "@/lib/actions/admin/content";
 import { EditorShell } from "@/components/editor/editor-shell";
+import type { AdminMediaAsset } from "@/lib/queries/admin/media";
 import type {
   AdminCollectionConfig,
   AdminContentRecord,
@@ -43,12 +44,23 @@ export function ContentEditor({
   config,
   record,
   mode,
+  mediaAssets,
+  errorMessage,
+  actionPath,
 }: {
   type: AdminContentType;
   config: AdminCollectionConfig;
   record: AdminContentRecord | null;
   mode: "create" | "edit";
+  mediaAssets: AdminMediaAsset[];
+  errorMessage?: string | null;
+  actionPath: string;
 }) {
+  const mediaOptions = mediaAssets.map((asset) => ({
+    value: asset.id,
+    label: asset.altText?.trim() ? `${asset.fileName} — ${asset.altText}` : asset.fileName,
+  }));
+
   return (
     <section className="space-y-6">
       <div className="space-y-2 border-b border-[var(--line)] pb-6">
@@ -66,11 +78,22 @@ export function ContentEditor({
 
       <form action={saveDraftAdminContentAction} className="space-y-6">
         <input type="hidden" name="type" value={type} />
+        <input type="hidden" name="returnPath" value={actionPath} />
         {record ? <input type="hidden" name="id" value={record.id} /> : null}
+
+        {errorMessage ? (
+          <p className="rounded-2xl border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-4 py-3 text-sm text-[#ffd5c4]">
+            {errorMessage}
+          </p>
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">
           {config.fields.map((field) => {
             const value = fieldValue(record, field.name, field.defaultValue ?? "");
+            const options =
+              field.name === "coverAssetId"
+                ? [{ value: "", label: "None" }, ...mediaOptions]
+                : (field.options ?? []).map((option) => ({ value: option, label: option }));
 
             return (
               <label key={field.name} className={`space-y-2 ${fieldWrapperClassName(field.kind)}`}>
@@ -91,9 +114,9 @@ export function ContentEditor({
                     defaultValue={value}
                     className="w-full rounded-3xl border border-[var(--line)] bg-black/20 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--accent)]"
                   >
-                    {(field.options ?? []).map((option) => (
-                      <option key={option} value={option}>
-                        {option}
+                    {options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>

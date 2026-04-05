@@ -43,6 +43,16 @@ export function ContentList({
           }}
         >
           <div className="space-y-3">
+            {item.cover?.publicUrl ? (
+              <div className="overflow-hidden border border-white/10 bg-black/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.cover.publicUrl}
+                  alt={item.cover.altText || item.displayTitle}
+                  className="h-48 w-full object-cover"
+                />
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2 text-[0.65rem] uppercase tracking-[0.35em] text-[#d9cfc2]">
               <span className="rounded-full border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-2 py-1 text-[#ffc8b0]">
                 {kindLabels[locale][kind]}

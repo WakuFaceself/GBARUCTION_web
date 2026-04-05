@@ -4,7 +4,7 @@ import { createDb } from "@/lib/db/client";
 import { siteSettings } from "@/lib/db/schema/content";
 import { hasDatabaseUrl } from "@/lib/env";
 import type { Locale } from "@/lib/i18n";
-import { getSiteSettingsRecord } from "@/lib/queries/admin/settings";
+import { getSiteSettingsHomeRecord, getSiteSettingsRecord } from "@/lib/queries/admin/settings";
 
 export type PublicSiteSettings = {
   siteTitle: string;
@@ -72,16 +72,18 @@ function normalizeHome(value: unknown) {
 
 export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
   if (!hasDatabaseUrl()) {
-    const global = await getSiteSettingsRecord();
+    const [global, home] = await Promise.all([getSiteSettingsRecord(), getSiteSettingsHomeRecord()]);
     return {
       ...global,
-      home: fallbackSettings.home,
+      home,
     };
   }
 
   const db = createDb();
-  const rows = await db.select().from(siteSettings).where(eq(siteSettings.key, "global"));
-  const homeRows = await db.select().from(siteSettings).where(eq(siteSettings.key, "home"));
+  const [rows, homeRows] = await Promise.all([
+    db.select().from(siteSettings).where(eq(siteSettings.key, "global")),
+    db.select().from(siteSettings).where(eq(siteSettings.key, "home")),
+  ]);
 
   return {
     ...normalizeGlobal(rows[0]?.value),

@@ -152,8 +152,10 @@ export function getBodyFallbackNotice(
   locale: SupportedLocale,
   bodyLanguage: SupportedLocale,
 ) {
-  if (locale === "en" && bodyLanguage === "zh") {
-    return "This page's body is shown in its original language.";
+  if (locale !== bodyLanguage) {
+    return locale === "en"
+      ? "This page's body is shown in its original language."
+      : "当前正文以原始语言显示。";
   }
 
   return "";

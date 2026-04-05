@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import {
+  AdminContentValidationError,
   getAdminCollectionConfig,
   isAdminContentType,
   saveAdminContentRecord,
@@ -32,18 +33,28 @@ function readFieldValues(type: AdminContentType, formData: FormData) {
 async function submitAdminContent(formData: FormData, status: AdminContentStatus) {
   const rawType = formData.get("type");
   const rawId = formData.get("id");
+  const returnPath = typeof formData.get("returnPath") === "string" ? String(formData.get("returnPath")) : "/admin";
 
   if (typeof rawType !== "string" || !isAdminContentType(rawType)) {
     throw new Error("Invalid admin content type");
   }
 
   const fields = readFieldValues(rawType, formData);
-  const record = await saveAdminContentRecord({
-    type: rawType,
-    id: typeof rawId === "string" && rawId.length > 0 ? rawId : undefined,
-    status,
-    fields,
-  });
+  let record;
+  try {
+    record = await saveAdminContentRecord({
+      type: rawType,
+      id: typeof rawId === "string" && rawId.length > 0 ? rawId : undefined,
+      status,
+      fields,
+    });
+  } catch (error) {
+    if (error instanceof AdminContentValidationError) {
+      redirect(`${returnPath}?error=${error.code}`);
+    }
+
+    throw error;
+  }
 
   const publicKindPath =
     rawType === "recommendations"

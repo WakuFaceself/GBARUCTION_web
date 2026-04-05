@@ -29,6 +29,17 @@ export function ContentDetail({
           </p>
         </div>
 
+        {item.cover?.publicUrl ? (
+          <div className="overflow-hidden border border-white/10 bg-black/20">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.cover.publicUrl}
+              alt={item.cover.altText || item.title[locale]}
+              className="max-h-[34rem] w-full object-cover"
+            />
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.35em] text-[#aa9f92]">
           <span>{formatPublicDate(item.publishedAt, locale)}</span>
           <span>•</span>

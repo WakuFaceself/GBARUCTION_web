@@ -13,7 +13,9 @@ import {
   shows,
   tags,
 } from "@/lib/db/schema/content";
+import { mediaAssets } from "@/lib/db/schema/media";
 import { hasDatabaseUrl } from "@/lib/env";
+import { listMediaAssets } from "@/lib/queries/admin/media";
 
 export type AdminContentType = "recommendations" | "shows" | "interviews" | "pages";
 export type AdminContentStatus = "draft" | "published" | "archived";
@@ -40,6 +42,16 @@ export type AdminContentRecord = {
   publishedAt: string | null;
   fields: Record<string, string>;
 };
+
+export class AdminContentValidationError extends Error {
+  constructor(
+    public code: "slug-conflict" | "slug-required" | "invalid-cover-asset" | "invalid-body-blocks",
+    message: string,
+  ) {
+    super(message);
+    this.name = "AdminContentValidationError";
+  }
+}
 
 export type AdminCollectionConfig = {
   type: AdminContentType;
@@ -72,6 +84,7 @@ const collectionConfigs = {
       { name: "titleEn", label: "Title en", kind: "text" },
       { name: "summaryZh", label: "Summary zh", kind: "textarea" },
       { name: "summaryEn", label: "Summary en", kind: "textarea" },
+      { name: "coverAssetId", label: "Cover asset", kind: "select", helpText: "Optional media asset linked from the media library." },
       { name: "tags", label: "Tags", kind: "textarea", helpText: "Comma or line-separated labels." },
       { name: "subjectName", label: "Subject name", kind: "text" },
       {
@@ -107,6 +120,7 @@ const collectionConfigs = {
       { name: "titleEn", label: "Title en", kind: "text" },
       { name: "summaryZh", label: "Summary zh", kind: "textarea" },
       { name: "summaryEn", label: "Summary en", kind: "textarea" },
+      { name: "coverAssetId", label: "Cover asset", kind: "select", helpText: "Optional media asset linked from the media library." },
       { name: "tags", label: "Tags", kind: "textarea", helpText: "Comma or line-separated labels." },
       { name: "startsAt", label: "Starts at", kind: "datetime" },
       { name: "venue", label: "Venue", kind: "text" },
@@ -139,6 +153,7 @@ const collectionConfigs = {
       { name: "titleEn", label: "Title en", kind: "text" },
       { name: "summaryZh", label: "Summary zh", kind: "textarea" },
       { name: "summaryEn", label: "Summary en", kind: "textarea" },
+      { name: "coverAssetId", label: "Cover asset", kind: "select", helpText: "Optional media asset linked from the media library." },
       { name: "tags", label: "Tags", kind: "textarea", helpText: "Comma or line-separated labels." },
       { name: "relatedEntityTextZh", label: "Related entity zh", kind: "text" },
       { name: "relatedEntityTextEn", label: "Related entity en", kind: "text" },
@@ -346,7 +361,11 @@ function parseBodyBlocksInput(value: string | undefined) {
     return bodyBlocksSchema.parse([]);
   }
 
-  return bodyBlocksSchema.parse(JSON.parse(raw));
+  try {
+    return bodyBlocksSchema.parse(JSON.parse(raw));
+  } catch {
+    throw new AdminContentValidationError("invalid-body-blocks", "Body blocks must be valid JSON matching the block schema.");
+  }
 }
 
 function parseTagInput(value: string | undefined) {
@@ -408,6 +427,15 @@ function slugifyTag(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function normalizeSlugInput(value: string | undefined, fallbackPrefix: string, now: Date) {
+  const raw = (value ?? "").trim();
+  if (raw) {
+    return raw;
+  }
+
+  return `${fallbackPrefix}-${now.toISOString().slice(0, 10)}`;
 }
 
 function makeSeedRecord(type: AdminContentType, fields: Record<string, string>): AdminContentRecord {
@@ -480,6 +508,7 @@ function mapRecommendationRow(
       titleEn: row.titleEn,
       summaryZh: row.summaryZh,
       summaryEn: row.summaryEn,
+      coverAssetId: row.coverAssetId ?? "",
       tags: formatTagInput(tagValues),
       subjectName: row.subjectName,
       bodyLanguage: row.bodyLanguage,
@@ -511,6 +540,7 @@ function mapShowRow(row: ShowRow, tagValues: string[]): AdminContentRecord {
       titleEn: row.titleEn,
       summaryZh: row.summaryZh,
       summaryEn: row.summaryEn,
+      coverAssetId: row.coverAssetId ?? "",
       tags: formatTagInput(tagValues),
       startsAt: formatDatetimeLocal(row.startsAt),
       venue: row.venue,
@@ -544,6 +574,7 @@ function mapInterviewRow(row: InterviewRow, tagValues: string[]): AdminContentRe
       titleEn: row.titleEn,
       summaryZh: row.summaryZh,
       summaryEn: row.summaryEn,
+      coverAssetId: row.coverAssetId ?? "",
       tags: formatTagInput(tagValues),
       relatedEntityTextZh: row.relatedEntityTextZh ?? "",
       relatedEntityTextEn: row.relatedEntityTextEn ?? "",
@@ -693,11 +724,31 @@ async function saveAdminContentRecordToDb({
   const now = new Date();
   const publishedAt = status === "published" ? now : null;
   const bodyBlocks = parseBodyBlocksInput(fields.bodyBlocks);
+  const slug = normalizeSlugInput(fields.slug, type.slice(0, -1), now);
+  const coverAssetId = fields.coverAssetId?.trim() || null;
+
+  if (!slug) {
+    throw new AdminContentValidationError("slug-required", "Slug is required.");
+  }
+
+  if (coverAssetId) {
+    const [asset] = await db.select({ id: mediaAssets.id }).from(mediaAssets).where(eq(mediaAssets.id, coverAssetId));
+    if (!asset) {
+      throw new AdminContentValidationError("invalid-cover-asset", "Selected cover asset does not exist.");
+    }
+  }
 
   switch (type) {
     case "recommendations": {
+      const [conflict] = await db
+        .select({ id: recommendations.id })
+        .from(recommendations)
+        .where(eq(recommendations.slug, slug));
+      if (conflict && conflict.id !== id) {
+        throw new AdminContentValidationError("slug-conflict", "Slug already exists in recommendations.");
+      }
       const values = {
-        slug: fields.slug || `recommendation-${now.toISOString().slice(0, 10)}`,
+        slug,
         status,
         titleZh: fields.titleZh ?? "",
         titleEn: fields.titleEn ?? "",
@@ -709,6 +760,7 @@ async function saveAdminContentRecordToDb({
         embedProvider: fields.embedProvider || null,
         embedUrl: fields.embedUrl || null,
         externalLinks: parseExternalLinksInput(fields.externalLinks),
+        coverAssetId,
         seoTitleZh: fields.seoTitleZh || null,
         seoTitleEn: fields.seoTitleEn || null,
         seoDescriptionZh: fields.seoDescriptionZh || null,
@@ -723,8 +775,12 @@ async function saveAdminContentRecordToDb({
       return (await getAdminContentFromDb(type, row.id))!;
     }
     case "shows": {
+      const [conflict] = await db.select({ id: shows.id }).from(shows).where(eq(shows.slug, slug));
+      if (conflict && conflict.id !== id) {
+        throw new AdminContentValidationError("slug-conflict", "Slug already exists in shows.");
+      }
       const values = {
-        slug: fields.slug || `show-${now.toISOString().slice(0, 10)}`,
+        slug,
         status,
         titleZh: fields.titleZh ?? "",
         titleEn: fields.titleEn ?? "",
@@ -738,6 +794,7 @@ async function saveAdminContentRecordToDb({
         lineupTextZh: fields.lineupTextZh ?? "",
         lineupTextEn: fields.lineupTextEn ?? "",
         ticketUrl: fields.ticketUrl || null,
+        coverAssetId,
         seoTitleZh: fields.seoTitleZh || null,
         seoTitleEn: fields.seoTitleEn || null,
         seoDescriptionZh: fields.seoDescriptionZh || null,
@@ -750,8 +807,15 @@ async function saveAdminContentRecordToDb({
       return (await getAdminContentFromDb(type, row.id))!;
     }
     case "interviews": {
+      const [conflict] = await db
+        .select({ id: interviews.id })
+        .from(interviews)
+        .where(eq(interviews.slug, slug));
+      if (conflict && conflict.id !== id) {
+        throw new AdminContentValidationError("slug-conflict", "Slug already exists in interviews.");
+      }
       const values = {
-        slug: fields.slug || `interview-${now.toISOString().slice(0, 10)}`,
+        slug,
         status,
         titleZh: fields.titleZh ?? "",
         titleEn: fields.titleEn ?? "",
@@ -761,6 +825,7 @@ async function saveAdminContentRecordToDb({
         bodyLanguage: fields.bodyLanguage || "zh",
         relatedEntityTextZh: fields.relatedEntityTextZh || null,
         relatedEntityTextEn: fields.relatedEntityTextEn || null,
+        coverAssetId,
         seoTitleZh: fields.seoTitleZh || null,
         seoTitleEn: fields.seoTitleEn || null,
         seoDescriptionZh: fields.seoDescriptionZh || null,
@@ -773,8 +838,12 @@ async function saveAdminContentRecordToDb({
       return (await getAdminContentFromDb(type, row.id))!;
     }
     case "pages": {
+      const [conflict] = await db.select({ id: pages.id }).from(pages).where(eq(pages.slug, slug));
+      if (conflict && conflict.id !== id) {
+        throw new AdminContentValidationError("slug-conflict", "Slug already exists in pages.");
+      }
       const values = {
-        slug: fields.slug || `page-${now.toISOString().slice(0, 10)}`,
+        slug,
         status,
         titleZh: fields.titleZh ?? "",
         titleEn: fields.titleEn ?? "",
@@ -876,16 +945,30 @@ export async function saveAdminContentRecord({
   }
 
   const now = new Date().toISOString();
-  const title = fields.titleZh || fields.titleEn || fields.slug || collectionConfigs[type].singularLabel;
+  const slug = normalizeSlugInput(fields.slug, type.slice(0, -1), new Date(now));
+  const title = fields.titleZh || fields.titleEn || slug || collectionConfigs[type].singularLabel;
   const summary = fields.summaryZh || fields.summaryEn || "";
   const publishedAt = status === "published" ? now : null;
+  const normalizedBodyBlocks = JSON.stringify(parseBodyBlocksInput(fields.bodyBlocks), null, 2);
   const existingIndex = id ? store.records[type].findIndex((record) => record.id === id) : -1;
+  const duplicate = store.records[type].find((record) => record.slug === slug && record.id !== id);
+
+  if (duplicate) {
+    throw new AdminContentValidationError("slug-conflict", `Slug already exists in ${type}.`);
+  }
+
+  if (fields.coverAssetId?.trim()) {
+    const assets = await listMediaAssets();
+    if (!assets.some((asset) => asset.id === fields.coverAssetId.trim())) {
+      throw new AdminContentValidationError("invalid-cover-asset", "Selected cover asset does not exist.");
+    }
+  }
 
   if (existingIndex >= 0) {
     const current = store.records[type][existingIndex];
     const nextRecord: AdminContentRecord = {
       ...current,
-      slug: fields.slug || current.slug,
+      slug,
       status,
       title,
       summary,
@@ -894,7 +977,9 @@ export async function saveAdminContentRecord({
       fields: {
         ...current.fields,
         ...fields,
-        bodyBlocks: fields.bodyBlocks || current.fields.bodyBlocks || defaultBodyBlocksString(),
+        slug,
+        coverAssetId: fields.coverAssetId?.trim() ?? "",
+        bodyBlocks: normalizedBodyBlocks || current.fields.bodyBlocks || defaultBodyBlocksString(),
       },
     };
 
@@ -905,7 +990,7 @@ export async function saveAdminContentRecord({
   const record: AdminContentRecord = {
     id: randomUUID(),
     type,
-    slug: fields.slug || `${collectionConfigs[type].type}-${now.slice(0, 10)}`,
+    slug,
     status,
     title,
     summary,
@@ -913,7 +998,8 @@ export async function saveAdminContentRecord({
     publishedAt,
     fields: {
       ...fields,
-      bodyBlocks: fields.bodyBlocks || defaultBodyBlocksString(),
+      coverAssetId: fields.coverAssetId?.trim() ?? "",
+      bodyBlocks: normalizedBodyBlocks || defaultBodyBlocksString(),
     },
   };
 

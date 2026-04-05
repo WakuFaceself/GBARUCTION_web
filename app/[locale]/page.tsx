@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ContentList } from "@/components/site/content-list";
 import { PublicShell } from "@/components/site/public-shell";
 import { isLocale } from "@/lib/i18n";
-import { getBrowseHighlights } from "@/lib/queries/public/content";
+import { getBrowseHighlights, getManagedPage } from "@/lib/queries/public/content";
 import { getPublicSiteSettings } from "@/lib/queries/public/site";
 
 const copy = {
@@ -49,7 +49,15 @@ export default async function LocaleHome({
 
   const content = copy[locale];
   const [highlights, siteSettings] = await Promise.all([getBrowseHighlights(locale), getPublicSiteSettings()]);
-  const blurb = locale === "zh" ? siteSettings.editorialNote : "A rolling editorial cover for music picks, shows, interviews, and the future poster lab.";
+  const [heroPage, posterLabPage] = await Promise.all([
+    siteSettings.home.heroSlug ? getManagedPage(siteSettings.home.heroSlug) : Promise.resolve(null),
+    siteSettings.home.posterLabSlug ? getManagedPage(siteSettings.home.posterLabSlug) : Promise.resolve(null),
+  ]);
+  const blurb = heroPage?.item.summary[locale] || (locale === "zh" ? siteSettings.editorialNote : "A rolling editorial cover for music picks, shows, interviews, and the future poster lab.");
+  const heroTitle = heroPage?.item.title[locale] || content.title;
+  const posterSlug = siteSettings.home.posterLabSlug || "poster-lab";
+  const secondaryHref = `/${locale}/${posterSlug === "poster-lab" ? "poster-lab" : `pages/${posterSlug}`}`;
+  const secondaryLabel = posterLabPage?.item.title[locale] || content.secondaryLabel;
 
   return (
     <PublicShell locale={locale}>
@@ -58,7 +66,7 @@ export default async function LocaleHome({
           <div className="space-y-6">
             <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">{`${siteSettings.siteTitle} label magazine`}</p>
             <h1 className="max-w-4xl text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] sm:text-7xl">
-              {content.title}
+              {heroTitle}
             </h1>
             <p className="max-w-2xl text-base leading-8 text-[#d7c9ba] sm:text-lg">{blurb}</p>
             <div className="flex flex-wrap gap-3">
@@ -69,10 +77,10 @@ export default async function LocaleHome({
                 {content.ctaLabel}
               </Link>
               <Link
-                href={content.secondaryHref}
+                href={secondaryHref}
                 className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold uppercase tracking-[0.25em] text-[#f5efe6]"
               >
-                {content.secondaryLabel}
+                {secondaryLabel}
               </Link>
             </div>
           </div>

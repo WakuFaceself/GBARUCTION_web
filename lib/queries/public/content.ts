@@ -11,6 +11,7 @@ import {
   shows,
   tags,
 } from "@/lib/db/schema/content";
+import { mediaAssets } from "@/lib/db/schema/media";
 import { hasDatabaseUrl } from "@/lib/env";
 import type { Locale } from "@/lib/i18n";
 import { getPublicSiteSettings, sortBySlugOrder } from "@/lib/queries/public/site";
@@ -32,6 +33,11 @@ export type PublicContentItem = {
   bodyBlocks: ContentBlock[];
   publishedAt: string;
   featured?: boolean;
+  cover?: {
+    publicUrl: string | null;
+    altText: string | null;
+    fileName: string;
+  };
   recommendation?: {
     subjectName: Record<Locale, string>;
     externalLinks: PublicContentLink[];
@@ -291,7 +297,30 @@ async function listTagLabelsByContent(contentType: string, contentIds: string[])
   return map;
 }
 
-function mapRecommendationRow(row: RecommendationRow, tagValues: string[]): PublicContentItem {
+async function listCoverAssets(assetIds: string[]) {
+  if (!assetIds.length) {
+    return new Map<string, { publicUrl: string | null; altText: string | null; fileName: string }>();
+  }
+
+  const db = createDb();
+  const rows = await db
+    .select({
+      id: mediaAssets.id,
+      publicUrl: mediaAssets.publicUrl,
+      altText: mediaAssets.altText,
+      fileName: mediaAssets.fileName,
+    })
+    .from(mediaAssets)
+    .where(inArray(mediaAssets.id, assetIds));
+
+  return new Map(rows.map((row) => [row.id, { publicUrl: row.publicUrl, altText: row.altText, fileName: row.fileName }]));
+}
+
+function mapRecommendationRow(
+  row: RecommendationRow,
+  tagValues: string[],
+  coverMap: Map<string, { publicUrl: string | null; altText: string | null; fileName: string }>,
+): PublicContentItem {
   return {
     kind: "recommendation",
     slug: row.slug,
@@ -301,6 +330,7 @@ function mapRecommendationRow(row: RecommendationRow, tagValues: string[]): Publ
     bodyLanguage: row.bodyLanguage as Locale,
     bodyBlocks: row.bodyBlocks as ContentBlock[],
     publishedAt: row.publishedAt?.toISOString() ?? row.updatedAt.toISOString(),
+    cover: row.coverAssetId ? coverMap.get(row.coverAssetId) : undefined,
     recommendation: {
       subjectName: {
         zh: row.subjectName,
@@ -316,7 +346,11 @@ function mapRecommendationRow(row: RecommendationRow, tagValues: string[]): Publ
   };
 }
 
-function mapShowRow(row: ShowRow, tagValues: string[]): PublicContentItem {
+function mapShowRow(
+  row: ShowRow,
+  tagValues: string[],
+  coverMap: Map<string, { publicUrl: string | null; altText: string | null; fileName: string }>,
+): PublicContentItem {
   return {
     kind: "show",
     slug: row.slug,
@@ -326,6 +360,7 @@ function mapShowRow(row: ShowRow, tagValues: string[]): PublicContentItem {
     bodyLanguage: row.bodyLanguage as Locale,
     bodyBlocks: row.bodyBlocks as ContentBlock[],
     publishedAt: row.publishedAt?.toISOString() ?? row.updatedAt.toISOString(),
+    cover: row.coverAssetId ? coverMap.get(row.coverAssetId) : undefined,
     show: {
       startsAt: row.startsAt.toISOString(),
       venue: row.venue,
@@ -339,7 +374,11 @@ function mapShowRow(row: ShowRow, tagValues: string[]): PublicContentItem {
   };
 }
 
-function mapInterviewRow(row: InterviewRow, tagValues: string[]): PublicContentItem {
+function mapInterviewRow(
+  row: InterviewRow,
+  tagValues: string[],
+  coverMap: Map<string, { publicUrl: string | null; altText: string | null; fileName: string }>,
+): PublicContentItem {
   return {
     kind: "interview",
     slug: row.slug,
@@ -349,6 +388,7 @@ function mapInterviewRow(row: InterviewRow, tagValues: string[]): PublicContentI
     bodyLanguage: row.bodyLanguage as Locale,
     bodyBlocks: row.bodyBlocks as ContentBlock[],
     publishedAt: row.publishedAt?.toISOString() ?? row.updatedAt.toISOString(),
+    cover: row.coverAssetId ? coverMap.get(row.coverAssetId) : undefined,
     interview: {
       relatedEntityText: {
         zh: row.relatedEntityTextZh ?? "",
@@ -369,7 +409,8 @@ async function getDbPublicCollection(kind: PublicKind) {
         .where(eq(recommendations.status, "published"))
         .orderBy(desc(recommendations.publishedAt), desc(recommendations.updatedAt));
       const tagMap = await listTagLabelsByContent("recommendations", rows.map((row) => row.id));
-      return rows.map((row) => mapRecommendationRow(row, tagMap.get(row.id) ?? []));
+      const coverMap = await listCoverAssets(rows.map((row) => row.coverAssetId).filter((value): value is string => Boolean(value)));
+      return rows.map((row) => mapRecommendationRow(row, tagMap.get(row.id) ?? [], coverMap));
     }
     case "show": {
       const rows = await db
@@ -378,7 +419,8 @@ async function getDbPublicCollection(kind: PublicKind) {
         .where(eq(shows.status, "published"))
         .orderBy(desc(shows.publishedAt), desc(shows.updatedAt));
       const tagMap = await listTagLabelsByContent("shows", rows.map((row) => row.id));
-      return rows.map((row) => mapShowRow(row, tagMap.get(row.id) ?? []));
+      const coverMap = await listCoverAssets(rows.map((row) => row.coverAssetId).filter((value): value is string => Boolean(value)));
+      return rows.map((row) => mapShowRow(row, tagMap.get(row.id) ?? [], coverMap));
     }
     case "interview": {
       const rows = await db
@@ -387,7 +429,8 @@ async function getDbPublicCollection(kind: PublicKind) {
         .where(eq(interviews.status, "published"))
         .orderBy(desc(interviews.publishedAt), desc(interviews.updatedAt));
       const tagMap = await listTagLabelsByContent("interviews", rows.map((row) => row.id));
-      return rows.map((row) => mapInterviewRow(row, tagMap.get(row.id) ?? []));
+      const coverMap = await listCoverAssets(rows.map((row) => row.coverAssetId).filter((value): value is string => Boolean(value)));
+      return rows.map((row) => mapInterviewRow(row, tagMap.get(row.id) ?? [], coverMap));
     }
   }
 }
@@ -405,7 +448,8 @@ async function getDbPublicItem(kind: PublicKind, slug: string) {
         return null;
       }
       const tagMap = await listTagLabelsByContent("recommendations", [row.id]);
-      return mapRecommendationRow(row, tagMap.get(row.id) ?? []);
+      const coverMap = await listCoverAssets(row.coverAssetId ? [row.coverAssetId] : []);
+      return mapRecommendationRow(row, tagMap.get(row.id) ?? [], coverMap);
     }
     case "show": {
       const [row] = await db.select().from(shows).where(and(eq(shows.slug, slug), eq(shows.status, "published")));
@@ -413,7 +457,8 @@ async function getDbPublicItem(kind: PublicKind, slug: string) {
         return null;
       }
       const tagMap = await listTagLabelsByContent("shows", [row.id]);
-      return mapShowRow(row, tagMap.get(row.id) ?? []);
+      const coverMap = await listCoverAssets(row.coverAssetId ? [row.coverAssetId] : []);
+      return mapShowRow(row, tagMap.get(row.id) ?? [], coverMap);
     }
     case "interview": {
       const [row] = await db
@@ -424,7 +469,8 @@ async function getDbPublicItem(kind: PublicKind, slug: string) {
         return null;
       }
       const tagMap = await listTagLabelsByContent("interviews", [row.id]);
-      return mapInterviewRow(row, tagMap.get(row.id) ?? []);
+      const coverMap = await listCoverAssets(row.coverAssetId ? [row.coverAssetId] : []);
+      return mapInterviewRow(row, tagMap.get(row.id) ?? [], coverMap);
     }
   }
 }
@@ -506,6 +552,29 @@ export async function getManagedPage(slug: string) {
         bodyBlocks: row.bodyBlocks as ContentBlock[],
         tags: tagMap.get(row.id) ?? [],
         publishedAt: row.publishedAt?.toISOString() ?? row.updatedAt.toISOString(),
+      },
+    };
+  }
+
+  const fallbackPages = globalThis.__gbaructionAdminStore?.records.pages ?? [];
+  const fallbackPage = fallbackPages.find((item) => item.slug === slug && item.status === "published");
+
+  if (fallbackPage) {
+    return {
+      item: {
+        slug: fallbackPage.slug,
+        title: {
+          zh: fallbackPage.fields.titleZh || fallbackPage.slug,
+          en: fallbackPage.fields.titleEn || fallbackPage.fields.titleZh || fallbackPage.slug,
+        },
+        summary: {
+          zh: fallbackPage.fields.summaryZh || "",
+          en: fallbackPage.fields.summaryEn || fallbackPage.fields.summaryZh || "",
+        },
+        bodyLanguage: (fallbackPage.fields.bodyLanguage as Locale) || "zh",
+        bodyBlocks: JSON.parse(fallbackPage.fields.bodyBlocks || "[]") as ContentBlock[],
+        tags: fallbackPage.fields.tags ? fallbackPage.fields.tags.split(",").map((item) => item.trim()).filter(Boolean) : [],
+        publishedAt: fallbackPage.publishedAt ?? fallbackPage.updatedAt,
       },
     };
   }
