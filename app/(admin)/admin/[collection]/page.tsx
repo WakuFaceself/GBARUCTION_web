@@ -19,8 +19,7 @@ export default async function AdminCollectionPage({
   }
 
   const config = getAdminCollectionConfig(collection);
-  const records = listAdminContent(collection);
+  const records = await listAdminContent(collection);
 
   return <ContentIndex type={collection} config={config} records={records} />;
 }
-

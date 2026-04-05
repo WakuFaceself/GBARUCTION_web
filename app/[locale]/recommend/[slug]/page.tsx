@@ -17,7 +17,7 @@ export async function generateMetadata({
     return {};
   }
 
-  const item = getPublicItem("recommendation", slug);
+  const item = await getPublicItem("recommendation", slug);
 
   if (!item) {
     return {};
@@ -37,7 +37,7 @@ export default async function RecommendDetailPage({
     notFound();
   }
 
-  const item = getPublicItem("recommendation", slug);
+  const item = await getPublicItem("recommendation", slug);
 
   if (!item) {
     notFound();

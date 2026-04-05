@@ -25,3 +25,7 @@ export const env = envSchema.parse({
   R2_BUCKET: process.env.R2_BUCKET,
   R2_PUBLIC_URL: process.env.R2_PUBLIC_URL,
 });
+
+export function hasDatabaseUrl() {
+  return Boolean(env.DATABASE_URL);
+}

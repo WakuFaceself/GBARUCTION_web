@@ -30,7 +30,7 @@ export default async function RecommendPage({
     return null;
   }
 
-  const items = getPublicCollection("recommendation", locale);
+  const items = await getPublicCollection("recommendation", locale);
   const hero = items[0];
 
   return (

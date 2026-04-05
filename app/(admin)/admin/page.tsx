@@ -2,8 +2,8 @@ import Link from "next/link";
 
 import { getAdminDashboardSnapshot } from "@/lib/queries/admin/content";
 
-export default function AdminDashboardPage() {
-  const snapshot = getAdminDashboardSnapshot();
+export default async function AdminDashboardPage() {
+  const snapshot = await getAdminDashboardSnapshot();
 
   return (
     <section className="space-y-8">
@@ -75,4 +75,3 @@ export default function AdminDashboardPage() {
     </section>
   );
 }
-

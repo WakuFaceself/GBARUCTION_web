@@ -17,7 +17,7 @@ export async function generateMetadata({
     return {};
   }
 
-  const item = getPublicItem("show", slug);
+  const item = await getPublicItem("show", slug);
 
   if (!item) {
     return {};
@@ -37,7 +37,7 @@ export default async function ShowDetailPage({
     notFound();
   }
 
-  const item = getPublicItem("show", slug);
+  const item = await getPublicItem("show", slug);
 
   if (!item) {
     notFound();

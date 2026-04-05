@@ -42,5 +42,5 @@ test("public browsing shell covers recommendations, shows, interviews, search, a
 
   await page.goto("/zh/poster-lab");
   await expect(page.getByRole("heading", { name: /海报实验室/ })).toBeVisible();
-  await expect(page.getByText("尚未开放")).toBeVisible();
+  await expect(page.getByText("尚未开放", { exact: true })).toBeVisible();
 });

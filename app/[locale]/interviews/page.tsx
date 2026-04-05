@@ -30,7 +30,7 @@ export default async function InterviewsPage({
     return null;
   }
 
-  const items = getPublicCollection("interview", locale);
+  const items = await getPublicCollection("interview", locale);
 
   return (
     <main className="space-y-8 pb-16">

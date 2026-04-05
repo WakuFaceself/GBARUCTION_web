@@ -47,7 +47,7 @@ export default async function LocaleHome({
   }
 
   const content = copy[locale];
-  const highlights = getBrowseHighlights(locale);
+  const highlights = await getBrowseHighlights(locale);
 
   return (
     <PublicShell locale={locale}>

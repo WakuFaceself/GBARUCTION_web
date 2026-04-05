@@ -30,7 +30,7 @@ export default async function ShowsPage({
     return null;
   }
 
-  const items = getPublicCollection("show", locale);
+  const items = await getPublicCollection("show", locale);
 
   return (
     <main className="space-y-8 pb-16">

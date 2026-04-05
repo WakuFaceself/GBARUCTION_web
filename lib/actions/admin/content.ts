@@ -14,12 +14,19 @@ import {
 function readFieldValues(type: AdminContentType, formData: FormData) {
   const config = getAdminCollectionConfig(type);
 
-  return Object.fromEntries(
+  const fieldValues = Object.fromEntries(
     config.fields.map((field) => {
       const value = formData.get(field.name);
       return [field.name, typeof value === "string" ? value : ""];
-    })
+    }),
   );
+
+  const bodyBlocks = formData.get("bodyBlocks");
+
+  return {
+    ...fieldValues,
+    bodyBlocks: typeof bodyBlocks === "string" ? bodyBlocks : "",
+  };
 }
 
 async function submitAdminContent(formData: FormData, status: AdminContentStatus) {
@@ -31,7 +38,7 @@ async function submitAdminContent(formData: FormData, status: AdminContentStatus
   }
 
   const fields = readFieldValues(rawType, formData);
-  const record = saveAdminContentRecord({
+  const record = await saveAdminContentRecord({
     type: rawType,
     id: typeof rawId === "string" && rawId.length > 0 ? rawId : undefined,
     status,
@@ -55,4 +62,3 @@ export async function publishAdminContentAction(formData: FormData) {
 export async function archiveAdminContentAction(formData: FormData) {
   await submitAdminContent(formData, "archived");
 }
-

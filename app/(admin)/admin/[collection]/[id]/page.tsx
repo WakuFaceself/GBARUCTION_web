@@ -15,7 +15,7 @@ export default async function EditAdminContentPage({
   }
 
   const config = getAdminCollectionConfig(collection);
-  const record = getAdminContent(collection, id);
+  const record = await getAdminContent(collection, id);
 
   if (!record) {
     notFound();
@@ -23,4 +23,3 @@ export default async function EditAdminContentPage({
 
   return <ContentEditor type={collection} config={config} record={record} mode="edit" />;
 }
-

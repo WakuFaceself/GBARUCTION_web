@@ -34,8 +34,8 @@ export default async function SearchPage({
   }
 
   const query = resolvedSearchParams.q?.trim() ?? "";
-  const results = query ? searchPublicContent(query, locale) : [];
-  const highlights = getBrowseHighlights(locale);
+  const results = query ? await searchPublicContent(query, locale) : [];
+  const highlights = await getBrowseHighlights(locale);
 
   return (
     <main className="space-y-8 pb-16">

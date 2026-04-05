@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BlockRenderer } from "@/lib/blocks/render";
 import { buildSiteMetadata } from "@/lib/seo";
 import { isLocale } from "@/lib/i18n";
+import { getManagedPage } from "@/lib/queries/public/content";
 
 export async function generateMetadata({
   params,
@@ -29,6 +31,12 @@ export default async function PosterLabPage({
     return null;
   }
 
+  const page = await getManagedPage("poster-lab");
+
+  if (!page) {
+    return null;
+  }
+
   return (
     <main className="space-y-8 pb-16">
       <section className="grid gap-6 border border-white/10 bg-white/5 p-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] lg:p-8">
@@ -37,12 +45,10 @@ export default async function PosterLabPage({
             {locale === "zh" ? "概念入口" : "concept gate"}
           </p>
           <h1 className="max-w-3xl text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] sm:text-7xl">
-            {locale === "zh" ? "海报实验室" : "Poster Lab"}
+            {page.item.title[locale]}
           </h1>
           <p className="max-w-2xl text-lg leading-8 text-[#d9cabd]">
-            {locale === "zh"
-              ? "这不是一个真正可用的工具，而是为未来海报生成、模板和拼贴工作流预留的概念页。"
-              : "This is not a live tool. It is a concept page reserved for future poster generation, templates, and collage workflows."}
+            {page.item.summary[locale]}
           </p>
         </div>
         <aside className="space-y-3 border border-[#ff8a63]/30 bg-[#ff8a63]/10 p-4">
@@ -58,6 +64,15 @@ export default async function PosterLabPage({
               : "Later it can hold templates, stickers, type layouts, and AI-assisted generation."}
           </p>
         </aside>
+      </section>
+
+      <section className="border border-white/10 bg-black/20 p-5">
+        <BlockRenderer
+          locale={locale}
+          bodyLanguage={page.item.bodyLanguage}
+          blocks={page.item.bodyBlocks}
+          className="space-y-4 text-base leading-8 text-[#efe3d6] [&_[data-body-language-notice]]:rounded [&_[data-body-language-notice]]:border [&_[data-body-language-notice]]:border-[#ff8a63]/30 [&_[data-body-language-notice]]:bg-[#ff8a63]/10 [&_[data-body-language-notice]]:px-3 [&_[data-body-language-notice]]:py-2 [&_[data-body-language-notice]]:text-sm [&_[data-body-language-notice]]:text-[#ffd5c4]"
+        />
       </section>
 
       <section className="grid gap-4 sm:grid-cols-3">

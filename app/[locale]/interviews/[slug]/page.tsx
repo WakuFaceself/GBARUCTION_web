@@ -17,7 +17,7 @@ export async function generateMetadata({
     return {};
   }
 
-  const item = getPublicItem("interview", slug);
+  const item = await getPublicItem("interview", slug);
 
   if (!item) {
     return {};
@@ -37,7 +37,7 @@ export default async function InterviewDetailPage({
     notFound();
   }
 
-  const item = getPublicItem("interview", slug);
+  const item = await getPublicItem("interview", slug);
 
   if (!item) {
     notFound();

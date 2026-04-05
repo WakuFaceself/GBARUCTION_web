@@ -1,4 +1,17 @@
+import { and, desc, eq, inArray } from "drizzle-orm";
+import type { InferSelectModel } from "drizzle-orm";
+
 import type { ContentBlock } from "@/lib/blocks/schema";
+import { createDb } from "@/lib/db/client";
+import {
+  contentTagLinks,
+  interviews,
+  pages,
+  recommendations,
+  shows,
+  tags,
+} from "@/lib/db/schema/content";
+import { hasDatabaseUrl } from "@/lib/env";
 import type { Locale } from "@/lib/i18n";
 
 export type PublicKind = "recommendation" | "show" | "interview";
@@ -33,6 +46,10 @@ export type PublicContentItem = {
     relatedEntityText: Record<Locale, string>;
   };
 };
+
+type RecommendationRow = InferSelectModel<typeof recommendations>;
+type ShowRow = InferSelectModel<typeof shows>;
+type InterviewRow = InferSelectModel<typeof interviews>;
 
 function richTextBlock(id: string, content: string): ContentBlock {
   return {
@@ -237,55 +254,275 @@ function formatDate(value: string, locale: Locale) {
   }).format(new Date(value));
 }
 
-export function getPublicCollection(kind: PublicKind, locale: Locale) {
-  return publicContent[kind]
-    .slice()
-    .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
-    .map((item) => ({
-      ...item,
-      displayTitle: item.title[locale],
-      displaySummary: item.summary[locale],
-      displayTags: item.tags,
-      displayDate: formatDate(item.publishedAt, locale),
-    }));
+function withPresentation(locale: Locale, item: PublicContentItem) {
+  return {
+    ...item,
+    displayTitle: item.title[locale] || item.title.zh || item.title.en,
+    displaySummary: item.summary[locale] || item.summary.zh || item.summary.en,
+    displayTags: item.tags,
+    displayDate: formatDate(item.publishedAt, locale),
+  };
 }
 
-export function getPublicItem(kind: PublicKind, slug: string) {
+async function listTagLabelsByContent(contentType: string, contentIds: string[]) {
+  if (!contentIds.length) {
+    return new Map<string, string[]>();
+  }
+
+  const db = createDb();
+  const rows = await db
+    .select({
+      contentId: contentTagLinks.contentId,
+      labelZh: tags.labelZh,
+      labelEn: tags.labelEn,
+    })
+    .from(contentTagLinks)
+    .innerJoin(tags, eq(contentTagLinks.tagId, tags.id))
+    .where(and(eq(contentTagLinks.contentType, contentType), inArray(contentTagLinks.contentId, contentIds)));
+
+  const map = new Map<string, string[]>();
+  for (const row of rows) {
+    const current = map.get(row.contentId) ?? [];
+    current.push(row.labelZh || row.labelEn);
+    map.set(row.contentId, current);
+  }
+
+  return map;
+}
+
+function mapRecommendationRow(row: RecommendationRow, tagValues: string[]): PublicContentItem {
+  return {
+    kind: "recommendation",
+    slug: row.slug,
+    title: { zh: row.titleZh, en: row.titleEn },
+    summary: { zh: row.summaryZh, en: row.summaryEn },
+    tags: tagValues,
+    bodyLanguage: row.bodyLanguage as Locale,
+    bodyBlocks: row.bodyBlocks as ContentBlock[],
+    publishedAt: row.publishedAt?.toISOString() ?? row.updatedAt.toISOString(),
+    recommendation: {
+      subjectName: {
+        zh: row.subjectName,
+        en: row.subjectName,
+      },
+      externalLinks: ((row.externalLinks as Array<{ label?: string; href?: string }>) ?? []).flatMap((link) => {
+        if (!link.href) {
+          return [];
+        }
+        return [{ label: link.label || link.href, href: link.href }];
+      }),
+    },
+  };
+}
+
+function mapShowRow(row: ShowRow, tagValues: string[]): PublicContentItem {
+  return {
+    kind: "show",
+    slug: row.slug,
+    title: { zh: row.titleZh, en: row.titleEn },
+    summary: { zh: row.summaryZh, en: row.summaryEn },
+    tags: tagValues,
+    bodyLanguage: row.bodyLanguage as Locale,
+    bodyBlocks: row.bodyBlocks as ContentBlock[],
+    publishedAt: row.publishedAt?.toISOString() ?? row.updatedAt.toISOString(),
+    show: {
+      startsAt: row.startsAt.toISOString(),
+      venue: row.venue,
+      city: row.city,
+      ticketUrl: row.ticketUrl ?? undefined,
+      lineup: {
+        zh: row.lineupTextZh,
+        en: row.lineupTextEn,
+      },
+    },
+  };
+}
+
+function mapInterviewRow(row: InterviewRow, tagValues: string[]): PublicContentItem {
+  return {
+    kind: "interview",
+    slug: row.slug,
+    title: { zh: row.titleZh, en: row.titleEn },
+    summary: { zh: row.summaryZh, en: row.summaryEn },
+    tags: tagValues,
+    bodyLanguage: row.bodyLanguage as Locale,
+    bodyBlocks: row.bodyBlocks as ContentBlock[],
+    publishedAt: row.publishedAt?.toISOString() ?? row.updatedAt.toISOString(),
+    interview: {
+      relatedEntityText: {
+        zh: row.relatedEntityTextZh ?? "",
+        en: row.relatedEntityTextEn ?? "",
+      },
+    },
+  };
+}
+
+async function getDbPublicCollection(kind: PublicKind) {
+  const db = createDb();
+
+  switch (kind) {
+    case "recommendation": {
+      const rows = await db
+        .select()
+        .from(recommendations)
+        .where(eq(recommendations.status, "published"))
+        .orderBy(desc(recommendations.publishedAt), desc(recommendations.updatedAt));
+      const tagMap = await listTagLabelsByContent("recommendations", rows.map((row) => row.id));
+      return rows.map((row) => mapRecommendationRow(row, tagMap.get(row.id) ?? []));
+    }
+    case "show": {
+      const rows = await db
+        .select()
+        .from(shows)
+        .where(eq(shows.status, "published"))
+        .orderBy(desc(shows.publishedAt), desc(shows.updatedAt));
+      const tagMap = await listTagLabelsByContent("shows", rows.map((row) => row.id));
+      return rows.map((row) => mapShowRow(row, tagMap.get(row.id) ?? []));
+    }
+    case "interview": {
+      const rows = await db
+        .select()
+        .from(interviews)
+        .where(eq(interviews.status, "published"))
+        .orderBy(desc(interviews.publishedAt), desc(interviews.updatedAt));
+      const tagMap = await listTagLabelsByContent("interviews", rows.map((row) => row.id));
+      return rows.map((row) => mapInterviewRow(row, tagMap.get(row.id) ?? []));
+    }
+  }
+}
+
+async function getDbPublicItem(kind: PublicKind, slug: string) {
+  const db = createDb();
+
+  switch (kind) {
+    case "recommendation": {
+      const [row] = await db
+        .select()
+        .from(recommendations)
+        .where(and(eq(recommendations.slug, slug), eq(recommendations.status, "published")));
+      if (!row) {
+        return null;
+      }
+      const tagMap = await listTagLabelsByContent("recommendations", [row.id]);
+      return mapRecommendationRow(row, tagMap.get(row.id) ?? []);
+    }
+    case "show": {
+      const [row] = await db.select().from(shows).where(and(eq(shows.slug, slug), eq(shows.status, "published")));
+      if (!row) {
+        return null;
+      }
+      const tagMap = await listTagLabelsByContent("shows", [row.id]);
+      return mapShowRow(row, tagMap.get(row.id) ?? []);
+    }
+    case "interview": {
+      const [row] = await db
+        .select()
+        .from(interviews)
+        .where(and(eq(interviews.slug, slug), eq(interviews.status, "published")));
+      if (!row) {
+        return null;
+      }
+      const tagMap = await listTagLabelsByContent("interviews", [row.id]);
+      return mapInterviewRow(row, tagMap.get(row.id) ?? []);
+    }
+  }
+}
+
+export async function getPublicCollection(kind: PublicKind, locale: Locale) {
+  const items = hasDatabaseUrl()
+    ? await getDbPublicCollection(kind)
+    : publicContent[kind]
+        .slice()
+        .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
+
+  return items.map((item) => withPresentation(locale, item));
+}
+
+export async function getPublicItem(kind: PublicKind, slug: string) {
+  if (hasDatabaseUrl()) {
+    return getDbPublicItem(kind, slug);
+  }
+
   return publicContent[kind].find((item) => item.slug === slug) ?? null;
 }
 
-export function searchPublicContent(query: string, locale: Locale) {
+export async function searchPublicContent(query: string, locale: Locale) {
   const needle = normalizeText(query);
 
   if (!needle) {
     return [];
   }
 
-  return (["recommendation", "show", "interview"] as const)
-    .flatMap((kind) =>
-      getPublicCollection(kind, locale).filter((item) => {
-        const searchable = [
-          item.title.zh,
-          item.title.en,
-          item.summary.zh,
-          item.summary.en,
-          ...item.tags,
-        ]
-          .join(" ")
-          .toLowerCase();
+  const collections = await Promise.all(
+    (["recommendation", "show", "interview"] as const).map((kind) => getPublicCollection(kind, locale)),
+  );
 
-        return searchable.includes(needle);
-      }),
-    )
+  return collections
+    .flat()
+    .filter((item) => {
+      const searchable = [item.title.zh, item.title.en, item.summary.zh, item.summary.en, ...item.tags]
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(needle);
+    })
     .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
 }
 
-export function getBrowseHighlights(locale: Locale) {
+export async function getBrowseHighlights(locale: Locale) {
+  const [recommendationsList, showsList, interviewsList] = await Promise.all([
+    getPublicCollection("recommendation", locale),
+    getPublicCollection("show", locale),
+    getPublicCollection("interview", locale),
+  ]);
+
   return {
-    recommendations: getPublicCollection("recommendation", locale).slice(0, 3),
-    shows: getPublicCollection("show", locale).slice(0, 2),
-    interviews: getPublicCollection("interview", locale).slice(0, 2),
+    recommendations: recommendationsList.slice(0, 3),
+    shows: showsList.slice(0, 2),
+    interviews: interviewsList.slice(0, 2),
   };
+}
+
+export async function getManagedPage(slug: string) {
+  if (hasDatabaseUrl()) {
+    const db = createDb();
+    const [row] = await db.select().from(pages).where(and(eq(pages.slug, slug), eq(pages.status, "published")));
+    if (!row) {
+      return null;
+    }
+
+    const tagMap = await listTagLabelsByContent("pages", [row.id]);
+    return {
+      item: {
+        slug: row.slug,
+        title: { zh: row.titleZh, en: row.titleEn },
+        summary: { zh: row.summaryZh, en: row.summaryEn },
+        bodyLanguage: row.bodyLanguage as Locale,
+        bodyBlocks: row.bodyBlocks as ContentBlock[],
+        tags: tagMap.get(row.id) ?? [],
+        publishedAt: row.publishedAt?.toISOString() ?? row.updatedAt.toISOString(),
+      },
+    };
+  }
+
+  if (slug === "poster-lab") {
+    return {
+      item: {
+        slug: "poster-lab",
+        title: { zh: "海报实验室", en: "Poster Lab" },
+        summary: {
+          zh: "首版先作为概念页存在，后续接入可编辑海报工具。",
+          en: "A concept page now, an editable poster tool later.",
+        },
+        bodyLanguage: "zh" as Locale,
+        bodyBlocks: [richTextBlock("poster-lab-body", "尚未开放的工具入口，但信息架构和视觉入口已经预埋。")],
+        tags: ["poster", "concept"],
+        publishedAt: "2026-04-05T08:00:00.000Z",
+      },
+    };
+  }
+
+  return null;
 }
 
 export function formatPublicDate(value: string, locale: Locale) {
