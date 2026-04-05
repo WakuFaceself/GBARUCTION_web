@@ -383,6 +383,29 @@ async function seedPages() {
   await db
     .insert(siteSettings)
     .values({
+      key: "global",
+      value: {
+        siteTitle: "GBARUCTION",
+        defaultLocale: "zh",
+        editorialNote: "把推荐、演出、采访和未来的海报实验室收进同一张持续更新的策展封面里。",
+      },
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: siteSettings.key,
+      set: {
+        value: {
+          siteTitle: "GBARUCTION",
+          defaultLocale: "zh",
+          editorialNote: "把推荐、演出、采访和未来的海报实验室收进同一张持续更新的策展封面里。",
+        },
+        updatedAt: new Date(),
+      },
+    });
+
+  await db
+    .insert(siteSettings)
+    .values({
       key: "home",
       value: {
         heroSlug: homepage.slug,

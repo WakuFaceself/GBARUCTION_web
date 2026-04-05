@@ -45,9 +45,27 @@ async function submitAdminContent(formData: FormData, status: AdminContentStatus
     fields,
   });
 
+  const publicKindPath =
+    rawType === "recommendations"
+      ? "recommend"
+      : rawType === "shows"
+        ? "shows"
+        : rawType === "interviews"
+          ? "interviews"
+          : "pages";
+
   revalidatePath("/admin");
   revalidatePath(`/admin/${rawType}`);
   revalidatePath(`/admin/${rawType}/${record.id}`);
+  revalidatePath("/");
+  revalidatePath("/zh");
+  revalidatePath("/en");
+  revalidatePath(`/zh/${publicKindPath}`);
+  revalidatePath(`/en/${publicKindPath}`);
+  revalidatePath(`/zh/${publicKindPath}/${record.slug}`);
+  revalidatePath(`/en/${publicKindPath}/${record.slug}`);
+  revalidatePath("/zh/search");
+  revalidatePath("/en/search");
   redirect(`/admin/${rawType}/${record.id}`);
 }
 

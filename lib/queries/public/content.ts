@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/schema/content";
 import { hasDatabaseUrl } from "@/lib/env";
 import type { Locale } from "@/lib/i18n";
+import { getPublicSiteSettings, sortBySlugOrder } from "@/lib/queries/public/site";
 
 export type PublicKind = "recommendation" | "show" | "interview";
 
@@ -475,11 +476,15 @@ export async function getBrowseHighlights(locale: Locale) {
     getPublicCollection("show", locale),
     getPublicCollection("interview", locale),
   ]);
+  const settings = await getPublicSiteSettings();
+  const orderedRecommendations = sortBySlugOrder(recommendationsList, settings.home.recommendations);
+  const orderedShows = sortBySlugOrder(showsList, settings.home.shows);
+  const orderedInterviews = sortBySlugOrder(interviewsList, settings.home.interviews);
 
   return {
-    recommendations: recommendationsList.slice(0, 3),
-    shows: showsList.slice(0, 2),
-    interviews: interviewsList.slice(0, 2),
+    recommendations: orderedRecommendations.slice(0, 3),
+    shows: orderedShows.slice(0, 2),
+    interviews: orderedInterviews.slice(0, 2),
   };
 }
 
