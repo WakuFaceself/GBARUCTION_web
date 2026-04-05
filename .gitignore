@@ -8,6 +8,9 @@ build/
 .vercel/
 .superpowers/
 .worktrees/
+package-lock.json
+test-results/
+tsconfig.tsbuildinfo
 .env
 .env.*
 !.env.example
