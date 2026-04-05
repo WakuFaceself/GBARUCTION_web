@@ -1,9 +1,19 @@
-export default function AdminMediaPage() {
-  const assets = [
-    { name: "cover-midnight-drive.jpg", kind: "image", status: "linked" },
-    { name: "spring-circuit-poster.png", kind: "image", status: "queued" },
-    { name: "interview-audio.mp3", kind: "audio", status: "linked" },
-  ];
+import { listMediaAssets } from "@/lib/queries/admin/media";
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export default async function AdminMediaPage() {
+  const assets = await listMediaAssets();
 
   return (
     <section className="space-y-6">
@@ -11,7 +21,8 @@ export default function AdminMediaPage() {
         <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Library</p>
         <h1 className="text-4xl font-black uppercase leading-none">Media</h1>
         <p className="max-w-2xl text-sm leading-6 text-[var(--muted)]">
-          The media shelf is a placeholder for uploads, asset metadata, and future R2 integration.
+          Uploaded assets now persist as `media_assets` records, so the library can reflect what has been queued for
+          R2 or already linked into content.
         </p>
       </div>
 
@@ -27,15 +38,20 @@ export default function AdminMediaPage() {
             </button>
           </div>
           <div className="mt-4 divide-y divide-[var(--line)]">
-            {assets.map((asset) => (
-              <div key={asset.name} className="flex items-center justify-between py-4 text-sm">
+            {assets.length ? assets.map((asset) => (
+              <div key={asset.id} className="flex items-center justify-between py-4 text-sm">
                 <div>
-                  <p className="font-medium">{asset.name}</p>
-                  <p className="text-[var(--muted)]">{asset.kind}</p>
+                  <p className="font-medium">{asset.fileName}</p>
+                  <p className="text-[var(--muted)]">
+                    {asset.kind} · {asset.mimeType} · {formatSize(asset.byteSize)}
+                  </p>
+                  <p className="text-[0.75rem] text-[var(--muted)]">{asset.objectKey}</p>
                 </div>
-                <span className="text-[var(--muted)]">{asset.status}</span>
+                <span className="text-[var(--muted)]">{asset.publicUrl ? "linked" : "queued"}</span>
               </div>
-            ))}
+            )) : (
+              <p className="py-4 text-sm text-[var(--muted)]">No assets yet. The first upload will appear here.</p>
+            )}
           </div>
         </div>
 
@@ -49,4 +65,3 @@ export default function AdminMediaPage() {
     </section>
   );
 }
-

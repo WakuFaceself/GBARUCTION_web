@@ -9,6 +9,7 @@ export function InviteComposer() {
     success: false,
     invite: null,
     emailPreview: null,
+    delivery: null,
     error: null,
   });
 
@@ -48,6 +49,11 @@ export function InviteComposer() {
           <p className="mt-2 break-all">{state.invite.inviteUrl}</p>
           <p className="mt-2 text-xs text-[#ffd5c4]">
             Email preview subject: {state.emailPreview?.subject ?? "GBARUCTION admin invite"}
+          </p>
+          <p className="mt-2 text-xs text-[#ffd5c4]">
+            {state.delivery?.ok
+              ? `Resend delivery queued: ${state.delivery.deliveryId ?? "no id returned"}`
+              : "Resend not configured, showing preview only."}
           </p>
         </div>
       ) : null}

@@ -4,12 +4,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createAdminInvite, createAdminSession, destroyAdminSession, type AdminInviteRecord, ADMIN_SESSION_COOKIE, getAdminSession } from "@/lib/auth";
-import { createInviteEmail } from "@/lib/email/resend";
+import { createInviteEmail, sendInviteEmail } from "@/lib/email/resend";
 
 export type InviteComposerState = {
   success: boolean;
   invite: AdminInviteRecord | null;
   emailPreview: ReturnType<typeof createInviteEmail> | null;
+  delivery: { ok: boolean; deliveryId: string | null; reason?: string } | null;
   error: string | null;
 };
 
@@ -57,17 +58,21 @@ export async function createAdminInviteAction(
       success: false,
       invite: null,
       emailPreview: null,
+      delivery: null,
       error: "Email is required.",
     };
   }
 
   const invite = await createAdminInvite(email, role);
-  const emailPreview = createInviteEmail(invite.email, invite.inviteUrl);
+  const deliveryResult = await sendInviteEmail(invite.email, invite.inviteUrl);
 
   return {
     success: true,
     invite,
-    emailPreview,
+    emailPreview: deliveryResult.preview,
+    delivery: deliveryResult.ok
+      ? { ok: true, deliveryId: deliveryResult.deliveryId }
+      : { ok: false, deliveryId: null, reason: deliveryResult.reason },
     error: null,
   };
 }

@@ -57,6 +57,10 @@ describe("upload presign route", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
+      asset: {
+        fileName: "poster.png",
+        mimeType: "image/png",
+      },
       uploadUrl: "https://uploads.example.com/demo",
     });
     expect(createUploadUrlMock).toHaveBeenCalledWith(expect.stringContaining("poster.png"), "image/png");
