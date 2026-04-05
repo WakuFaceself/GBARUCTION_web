@@ -51,6 +51,8 @@ Open `http://127.0.0.1:3000`.
 ## Useful Commands
 
 ```bash
+pnpm db:generate
+pnpm db:migrate
 pnpm lint
 pnpm typecheck
 pnpm test
@@ -77,6 +79,7 @@ pnpm build
 - 1 poster lab concept page
 
 The seed structure already follows the current V1 rule: bilingual metadata, but only one body per content item.
+If `DATABASE_URL` is configured, the same command will upsert the minimum editorial content into the database instead of only printing the preview payload.
 
 ## Deployment
 
