@@ -263,7 +263,6 @@ if (!globalThis.__gbaructionAdminStore) {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __gbaructionAdminStore: AdminStore | undefined;
 }
 
@@ -399,4 +398,3 @@ export function saveAdminContentRecord({
   store.records[type].unshift(record);
   return cloneRecord(record);
 }
-

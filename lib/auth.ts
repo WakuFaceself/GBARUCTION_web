@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+
 export type AdminSession = {
   user: {
     id: string;
@@ -9,6 +11,13 @@ export type AdminSession = {
 export type InviteAcceptanceResult =
   | { ok: true; inviteStatus: "accepted" }
   | { ok: false; reason: "invite-used" | "invite-expired" };
+
+export class AdminAuthError extends Error {
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "AdminAuthError";
+  }
+}
 
 export function acceptInvite(consumedAt: Date | null, expiresAt: Date): InviteAcceptanceResult {
   if (consumedAt) {
@@ -23,6 +32,13 @@ export function acceptInvite(consumedAt: Date | null, expiresAt: Date): InviteAc
 }
 
 export async function requireAdminSession(): Promise<AdminSession> {
+  const headerStore = await headers();
+  const sessionToken = headerStore.get("x-gbaruction-admin-session");
+
+  if (sessionToken !== "demo-admin") {
+    throw new AdminAuthError();
+  }
+
   return {
     user: {
       id: "demo-admin",

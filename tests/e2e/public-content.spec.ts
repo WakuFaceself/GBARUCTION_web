@@ -4,14 +4,15 @@ test("public browsing shell covers recommendations, shows, interviews, search, a
   page,
 }) => {
   await page.goto("/zh");
+  const primaryNav = page.getByRole("navigation").first();
 
-  await expect(page.getByRole("link", { name: "推荐" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "演出" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "采访" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "搜索" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "海报实验室" })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "推荐" })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "演出" })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "采访" })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "搜索" })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "海报实验室" })).toBeVisible();
 
-  await page.getByRole("link", { name: "推荐" }).click();
+  await primaryNav.getByRole("link", { name: "推荐" }).click();
   await expect(page).toHaveURL(/\/zh\/recommend$/);
   await expect(page.getByRole("heading", { name: /推荐/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "霓虹漂移" })).toBeVisible();

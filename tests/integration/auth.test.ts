@@ -10,4 +10,10 @@ describe("admin invite flow", () => {
     expect(freshInvite).toEqual({ ok: true, inviteStatus: "accepted" });
     expect(reusedInvite).toEqual({ ok: false, reason: "invite-used" });
   });
+
+  it("rejects expired invites", () => {
+    const expiredInvite = acceptInvite(null, new Date(Date.now() - 60_000));
+
+    expect(expiredInvite).toEqual({ ok: false, reason: "invite-expired" });
+  });
 });

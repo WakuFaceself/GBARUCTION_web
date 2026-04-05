@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 type ImageBlockProps = {
   src: string;
@@ -9,7 +10,7 @@ type ImageBlockProps = {
 export function ImageBlock({ src, alt, caption }: ImageBlockProps) {
   return (
     <figure data-block-type="image">
-      <img src={src} alt={alt} />
+      <Image src={src} alt={alt} width={1600} height={1200} />
       {caption ? <figcaption>{caption}</figcaption> : null}
     </figure>
   );

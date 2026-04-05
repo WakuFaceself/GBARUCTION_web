@@ -38,14 +38,6 @@ function readString(value: unknown): string | undefined {
   return undefined;
 }
 
-function readStrings(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.map(readString).filter((item): item is string => Boolean(item));
-}
-
 function readBlockData(block: ContentBlock): BlockData {
   return isRecord(block.data) ? block.data : {};
 }
