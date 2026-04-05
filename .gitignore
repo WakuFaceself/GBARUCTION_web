@@ -7,7 +7,7 @@ build/
 .cache/
 .vercel/
 .superpowers/
+.worktrees/
 .env
 .env.*
 !.env.example
-
