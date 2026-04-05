@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const headersMock = vi.fn();
+const cookiesMock = vi.fn();
 const createUploadUrlMock = vi.fn();
 
 vi.mock("next/headers", () => ({
   headers: headersMock,
+  cookies: cookiesMock,
 }));
 
 vi.mock("@/lib/storage/r2", () => ({
@@ -14,11 +16,15 @@ vi.mock("@/lib/storage/r2", () => ({
 describe("upload presign route", () => {
   beforeEach(() => {
     headersMock.mockReset();
+    cookiesMock.mockReset();
     createUploadUrlMock.mockReset();
   });
 
   it("rejects requests without an admin session header", async () => {
     headersMock.mockResolvedValue(new Headers());
+    cookiesMock.mockResolvedValue({
+      get: () => undefined,
+    });
 
     const { POST } = await import("@/app/api/uploads/presign/route");
     const response = await POST(
@@ -35,6 +41,9 @@ describe("upload presign route", () => {
 
   it("returns a signed url for authenticated admins", async () => {
     headersMock.mockResolvedValue(new Headers([["x-gbaruction-admin-session", "demo-admin"]]));
+    cookiesMock.mockResolvedValue({
+      get: () => undefined,
+    });
     createUploadUrlMock.mockResolvedValue("https://uploads.example.com/demo");
 
     const { POST } = await import("@/app/api/uploads/presign/route");

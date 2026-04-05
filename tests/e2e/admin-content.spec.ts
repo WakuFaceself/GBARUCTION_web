@@ -16,6 +16,14 @@ const routes = [
 ] as const;
 
 test("admin CMS shell and content scaffolding are reachable", async ({ page }) => {
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin\/login$/);
+
+  await page.getByLabel("Email").fill("admin@example.com");
+  await page.getByLabel("Password").fill("gbaruction-admin");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+
   for (const route of routes) {
     await page.goto(route.path);
     await expect(page.getByRole("main").getByRole("heading", { name: route.heading })).toBeVisible();
