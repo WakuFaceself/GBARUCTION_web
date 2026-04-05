@@ -37,8 +37,9 @@ test("public browsing shell covers recommendations, shows, interviews, search, a
 
   await page.goto("/zh/search?q=drift");
   await expect(page.getByRole("heading", { name: /搜索/ })).toBeVisible();
-  await expect(page.getByText("霓虹漂移")).toBeVisible();
-  await expect(page.getByText("终端花开")).not.toBeVisible();
+  const results = page.getByRole("main").locator("article");
+  await expect(results.getByText("霓虹漂移")).toBeVisible();
+  await expect(results.getByText("终端花开")).toHaveCount(0);
 
   await page.goto("/zh/poster-lab");
   await expect(page.getByRole("heading", { name: /海报实验室/ })).toBeVisible();

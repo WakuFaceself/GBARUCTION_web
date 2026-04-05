@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { acceptAdminInvite, acceptInvite, createAdminInvite, createAdminSession } from "@/lib/auth";
+import {
+  acceptAdminInvite,
+  acceptInvite,
+  createAdminInvite,
+  createAdminSession,
+  createPasswordResetToken,
+  getAdminSessionCookieOptions,
+  resetAdminPassword,
+} from "@/lib/auth";
 
 describe("admin invite flow", () => {
   beforeEach(() => {
@@ -35,5 +43,29 @@ describe("admin invite flow", () => {
 
     expect(accepted).toEqual({ ok: true, email: "writer@example.com" });
     expect(session?.user.email).toBe("writer@example.com");
+  });
+
+  it("resets the seeded admin password and invalidates the old one", async () => {
+    const reset = await createPasswordResetToken("admin@example.com");
+    const result = await resetAdminPassword(reset?.token ?? "", "new-admin-password");
+    const staleSession = await createAdminSession("admin@example.com", "gbaruction-admin");
+    const freshSession = await createAdminSession("admin@example.com", "new-admin-password");
+
+    expect(result).toEqual({ ok: true, email: "admin@example.com" });
+    expect(staleSession).toBeNull();
+    expect(freshSession?.user.email).toBe("admin@example.com");
+  });
+
+  it("marks auth cookies secure when the auth URL is https", () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
+
+    const options = getAdminSessionCookieOptions(new Date("2026-04-05T00:00:00.000Z"));
+
+    process.env.BETTER_AUTH_URL = previousUrl;
+
+    expect(options.secure).toBe(true);
+    expect(options.httpOnly).toBe(true);
+    expect(options.sameSite).toBe("lax");
   });
 });

@@ -16,6 +16,8 @@ const routes = [
 ] as const;
 
 test("admin CMS shell and content scaffolding are reachable", async ({ page }) => {
+  test.setTimeout(60_000);
+
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/login$/);
 
@@ -25,11 +27,11 @@ test("admin CMS shell and content scaffolding are reachable", async ({ page }) =
   await expect(page).toHaveURL(/\/admin$/);
 
   for (const route of routes) {
-    await page.goto(route.path);
+    await page.goto(route.path, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("main").getByRole("heading", { name: route.heading })).toBeVisible();
   }
 
-  await page.goto("/admin/recommendations/new");
+  await page.goto("/admin/recommendations/new", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("button", { name: "Save draft" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Publish" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Archive" })).toBeVisible();

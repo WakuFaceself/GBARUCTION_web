@@ -3,8 +3,18 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { createAdminInvite, createAdminSession, destroyAdminSession, type AdminInviteRecord, ADMIN_SESSION_COOKIE, getAdminSession } from "@/lib/auth";
-import { createInviteEmail, sendInviteEmail } from "@/lib/email/resend";
+import {
+  createAdminInvite,
+  createAdminSession,
+  createPasswordResetToken,
+  destroyAdminSession,
+  getAdminSession,
+  getAdminSessionCookieOptions,
+  resetAdminPassword,
+  type AdminInviteRecord,
+  ADMIN_SESSION_COOKIE,
+} from "@/lib/auth";
+import { createInviteEmail, sendInviteEmail, sendPasswordResetEmail } from "@/lib/email/resend";
 
 export type InviteComposerState = {
   success: boolean;
@@ -24,13 +34,7 @@ export async function loginAdminAction(formData: FormData) {
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(ADMIN_SESSION_COOKIE, session.token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: false,
-    path: "/",
-    expires: session.expiresAt,
-  });
+  cookieStore.set(ADMIN_SESSION_COOKIE, session.token, getAdminSessionCookieOptions(session.expiresAt));
 
   redirect("/admin");
 }
@@ -75,4 +79,34 @@ export async function createAdminInviteAction(
       : { ok: false, deliveryId: null, reason: deliveryResult.reason },
     error: null,
   };
+}
+
+export async function requestPasswordResetAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+
+  if (!email) {
+    redirect("/admin/reset-password?error=missing-email");
+  }
+
+  const reset = await createPasswordResetToken(email);
+
+  if (!reset) {
+    redirect("/admin/reset-password?sent=1");
+  }
+
+  const deliveryResult = await sendPasswordResetEmail(reset.email, reset.resetUrl);
+  const status = deliveryResult.ok ? "queued" : deliveryResult.reason ?? "preview";
+  redirect(`/admin/reset-password?sent=1&mode=${status}`);
+}
+
+export async function resetPasswordAction(formData: FormData) {
+  const token = String(formData.get("token") ?? "");
+  const password = String(formData.get("password") ?? "");
+
+  const result = await resetAdminPassword(token, password);
+  if (!result.ok) {
+    redirect(`/admin/reset-password/${token}?error=${result.reason}`);
+  }
+
+  redirect("/admin/login?reset=1");
 }

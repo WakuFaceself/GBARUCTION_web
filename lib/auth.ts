@@ -4,11 +4,12 @@ import { and, eq, gt } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 
 import { createDb } from "@/lib/db/client";
-import { accounts, adminInvites, sessions, users } from "@/lib/db/schema/auth";
-import { hasDatabaseUrl } from "@/lib/env";
+import { accounts, adminInvites, sessions, users, verificationTokens } from "@/lib/db/schema/auth";
+import { env, hasDatabaseUrl } from "@/lib/env";
 
 export const ADMIN_SESSION_COOKIE = "gbaruction_admin_session";
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 3;
+const RESET_TTL_MS = 1000 * 60 * 60 * 2;
 
 export type AdminSession = {
   user: {
@@ -37,6 +38,9 @@ export type AdminInviteRecord = {
 type StoredUser = {
   id: string;
   email: string;
+  emailVerified: boolean;
+  name: string;
+  image?: string | null;
   passwordHash: string;
   role: "admin";
 };
@@ -56,10 +60,18 @@ type StoredInvite = {
   expiresAt: Date;
 };
 
+type StoredVerificationToken = {
+  id: string;
+  identifier: string;
+  token: string;
+  expiresAt: Date;
+};
+
 type MemoryAuthStore = {
   users: StoredUser[];
   sessions: StoredSession[];
   invites: StoredInvite[];
+  verificationTokens: StoredVerificationToken[];
 };
 
 declare global {
@@ -106,12 +118,16 @@ function getMemoryStore() {
         {
           id: "demo-admin",
           email: "admin@example.com",
+          emailVerified: true,
+          name: "GBARUCTION Admin",
+          image: null,
           passwordHash: hashPassword("gbaruction-admin"),
           role: "admin",
         },
       ],
       sessions: [],
       invites: [],
+      verificationTokens: [],
     };
   }
 
@@ -144,6 +160,19 @@ export function acceptInvite(consumedAt: Date | null, expiresAt: Date): InviteAc
   }
 
   return { ok: true, inviteStatus: "accepted" };
+}
+
+export function getAdminSessionCookieOptions(expiresAt?: Date) {
+  const authUrl = process.env.BETTER_AUTH_URL ?? env.BETTER_AUTH_URL;
+  const secure = process.env.NODE_ENV === "production" || Boolean(authUrl?.startsWith("https://"));
+
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure,
+    path: "/",
+    expires: expiresAt,
+  };
 }
 
 export async function getAdminSession(): Promise<AdminSession | null> {
@@ -237,6 +266,8 @@ async function persistSession(userId: string) {
       userId,
       token,
       expiresAt,
+      ipAddress: null,
+      userAgent: null,
     });
   } else {
     const store = getMemoryStore();
@@ -247,12 +278,68 @@ async function persistSession(userId: string) {
   return { token, expiresAt };
 }
 
+async function getCredentialAccountHash(userId: string) {
+  if (!hasDatabaseUrl()) {
+    return null;
+  }
+
+  const db = createDb();
+  const [account] = await db
+    .select({
+      password: accounts.password,
+    })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credentials")));
+
+  return account?.password ?? null;
+}
+
+async function syncCredentialAccount(userId: string, email: string, passwordHash: string) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const db = createDb();
+  const [existing] = await db
+    .select({
+      id: accounts.id,
+    })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credentials")));
+
+  if (existing) {
+    await db
+      .update(accounts)
+      .set({
+        provider: "credentials",
+        providerId: "credentials",
+        providerAccountId: email,
+        accountId: email,
+        password: passwordHash,
+        updatedAt: new Date(),
+      })
+      .where(eq(accounts.id, existing.id));
+    return;
+  }
+
+  await db.insert(accounts).values({
+    userId,
+    provider: "credentials",
+    providerId: "credentials",
+    providerAccountId: email,
+    accountId: email,
+    password: passwordHash,
+  });
+}
+
 export async function createAdminSession(email: string, password: string) {
   if (hasDatabaseUrl()) {
     const db = createDb();
     const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    const credentialHash = user ? await getCredentialAccountHash(user.id) : null;
+    const storedPasswordHash = credentialHash ?? user?.passwordHash ?? null;
 
-    if (!user || user.role !== "admin" || !verifyPassword(password, user.passwordHash)) {
+    if (!user || user.role !== "admin" || !verifyPassword(password, storedPasswordHash)) {
       return null;
     }
 
@@ -436,12 +523,16 @@ export async function acceptAdminInvite(token: string, password: string) {
       .insert(users)
       .values({
         email: invite.email,
+        emailVerified: true,
+        name: "GBARUCTION Admin",
         passwordHash,
         role: "admin",
       })
       .onConflictDoUpdate({
         target: users.email,
         set: {
+          emailVerified: true,
+          name: "GBARUCTION Admin",
           passwordHash,
           role: "admin",
           updatedAt: new Date(),
@@ -456,14 +547,7 @@ export async function acceptAdminInvite(token: string, password: string) {
       })
       .where(eq(adminInvites.id, invite.id));
 
-    await db
-      .insert(accounts)
-      .values({
-        userId: user.id,
-        provider: "credentials",
-        providerAccountId: invite.email,
-      })
-      .onConflictDoNothing();
+    await syncCredentialAccount(user.id, invite.email, passwordHash);
 
     return { ok: true as const, email: user.email };
   }
@@ -487,10 +571,151 @@ export async function acceptAdminInvite(token: string, password: string) {
     store.users.push({
       id: randomUUID(),
       email: invite.email,
+      emailVerified: true,
+      name: "GBARUCTION Admin",
+      image: null,
       passwordHash: hashPassword(password),
       role: "admin",
     });
   }
 
   return { ok: true as const, email: invite.email };
+}
+
+export async function createPasswordResetToken(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + RESET_TTL_MS);
+
+  if (hasDatabaseUrl()) {
+    const db = createDb();
+    const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+
+    if (!user || user.role !== "admin") {
+      return null;
+    }
+
+    await db.insert(verificationTokens).values({
+      identifier: normalizedEmail,
+      token,
+      value: token,
+      expiresAt,
+    });
+
+    return {
+      email: normalizedEmail,
+      token,
+      expiresAt,
+      resetUrl: `/admin/reset-password/${token}`,
+    };
+  }
+
+  const store = getMemoryStore();
+  const user = store.users.find((item) => item.email === normalizedEmail);
+  if (!user) {
+    return null;
+  }
+
+  store.verificationTokens.unshift({
+    id: randomUUID(),
+    identifier: normalizedEmail,
+    token,
+    expiresAt,
+  });
+
+  return {
+    email: normalizedEmail,
+    token,
+    expiresAt,
+    resetUrl: `/admin/reset-password/${token}`,
+  };
+}
+
+export async function getPasswordResetTokenRecord(token: string) {
+  if (hasDatabaseUrl()) {
+    const db = createDb();
+    const [record] = await db.select().from(verificationTokens).where(eq(verificationTokens.token, token));
+    if (!record) {
+      return null;
+    }
+
+    return {
+      email: record.identifier,
+      token: record.token,
+      expiresAt: record.expiresAt,
+      isExpired: record.expiresAt.getTime() < Date.now(),
+    };
+  }
+
+  const store = getMemoryStore();
+  const record = store.verificationTokens.find((item) => item.token === token);
+  if (!record) {
+    return null;
+  }
+
+  return {
+    email: record.identifier,
+    token: record.token,
+    expiresAt: record.expiresAt,
+    isExpired: record.expiresAt.getTime() < Date.now(),
+  };
+}
+
+export async function resetAdminPassword(token: string, password: string) {
+  if (hasDatabaseUrl()) {
+    const db = createDb();
+    const [record] = await db.select().from(verificationTokens).where(eq(verificationTokens.token, token));
+
+    if (!record) {
+      return { ok: false as const, reason: "token-not-found" };
+    }
+
+    if (record.expiresAt.getTime() < Date.now()) {
+      return { ok: false as const, reason: "token-expired" };
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.email, record.identifier));
+    if (!user) {
+      await db.delete(verificationTokens).where(eq(verificationTokens.id, record.id));
+      return { ok: false as const, reason: "token-not-found" };
+    }
+
+    const passwordHash = hashPassword(password);
+    await db
+      .update(users)
+      .set({
+        passwordHash,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
+
+    await syncCredentialAccount(user.id, user.email, passwordHash);
+    await db.delete(sessions).where(eq(sessions.userId, user.id));
+    await db.delete(verificationTokens).where(eq(verificationTokens.id, record.id));
+
+    return { ok: true as const, email: record.identifier };
+  }
+
+  const store = getMemoryStore();
+  const recordIndex = store.verificationTokens.findIndex((item) => item.token === token);
+
+  if (recordIndex === -1) {
+    return { ok: false as const, reason: "token-not-found" };
+  }
+
+  const record = store.verificationTokens[recordIndex];
+  if (record.expiresAt.getTime() < Date.now()) {
+    return { ok: false as const, reason: "token-expired" };
+  }
+
+  const user = store.users.find((item) => item.email === record.identifier);
+  if (!user) {
+    return { ok: false as const, reason: "token-not-found" };
+  }
+
+  user.passwordHash = hashPassword(password);
+  store.sessions = store.sessions.filter((item) => item.userId !== user.id);
+  store.verificationTokens.splice(recordIndex, 1);
+
+  return { ok: true as const, email: user.email };
 }

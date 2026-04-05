@@ -1,8 +1,19 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { createAdminInvite, createAdminSession, destroyAdminSession, getAdminSession, requireAdminSession, ADMIN_SESSION_COOKIE } from "@/lib/auth";
-import { createInviteEmail, sendInviteEmail } from "@/lib/email/resend";
+import {
+  createAdminInvite,
+  createAdminSession,
+  createPasswordResetToken,
+  destroyAdminSession,
+  getAdminSession,
+  getAdminSessionCookieOptions,
+  requireAdminSession,
+  resetAdminPassword,
+  acceptAdminInvite,
+  ADMIN_SESSION_COOKIE,
+} from "@/lib/auth";
+import { createInviteEmail, createPasswordResetEmail, sendInviteEmail, sendPasswordResetEmail } from "@/lib/email/resend";
 
 function getAction(request: Request) {
   const segments = new URL(request.url).pathname.split("/").filter(Boolean);
@@ -32,13 +43,7 @@ export async function POST(request: Request) {
     }
 
     const cookieStore = await cookies();
-    cookieStore.set(ADMIN_SESSION_COOKIE, session.token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-      path: "/",
-      expires: session.expiresAt,
-    });
+    cookieStore.set(ADMIN_SESSION_COOKIE, session.token, getAdminSessionCookieOptions(session.expiresAt));
 
     return NextResponse.json({ ok: true, session });
   }
@@ -75,6 +80,58 @@ export async function POST(request: Request) {
       emailPreview: delivery.preview ?? createInviteEmail(invite.email, invite.inviteUrl),
       delivery,
     });
+  }
+
+  if (action === "invite/accept") {
+    const body = (await request.json()) as { token?: string; password?: string };
+    if (!body.token || !body.password) {
+      return NextResponse.json({ ok: false, reason: "missing-fields" }, { status: 400 });
+    }
+
+    const result = await acceptAdminInvite(body.token, body.password);
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 400 });
+    }
+
+    return NextResponse.json(result);
+  }
+
+  if (action === "forgot-password") {
+    const body = (await request.json()) as { email?: string };
+    if (!body.email) {
+      return NextResponse.json({ ok: false, reason: "missing-email" }, { status: 400 });
+    }
+
+    const reset = await createPasswordResetToken(body.email);
+    if (!reset) {
+      return NextResponse.json({ ok: true, delivery: { ok: true, deliveryId: null }, emailPreview: null });
+    }
+
+    const delivery = await sendPasswordResetEmail(reset.email, reset.resetUrl);
+    return NextResponse.json({
+      ok: true,
+      reset: {
+        email: reset.email,
+        expiresAt: reset.expiresAt,
+        resetUrl: reset.resetUrl,
+      },
+      emailPreview: delivery.preview ?? createPasswordResetEmail(reset.email, reset.resetUrl),
+      delivery,
+    });
+  }
+
+  if (action === "reset-password") {
+    const body = (await request.json()) as { token?: string; password?: string };
+    if (!body.token || !body.password) {
+      return NextResponse.json({ ok: false, reason: "missing-fields" }, { status: 400 });
+    }
+
+    const result = await resetAdminPassword(body.token, body.password);
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 400 });
+    }
+
+    return NextResponse.json(result);
   }
 
   return NextResponse.json({ ok: false, reason: "not-found" }, { status: 404 });

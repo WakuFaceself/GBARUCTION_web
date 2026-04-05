@@ -1,16 +1,20 @@
+import Link from "next/link";
+
 import { loginAdminAction } from "@/lib/actions/admin/auth";
 
 const copy = {
   invalid: "Email or password is incorrect.",
+  reset: "Password updated. You can sign in with your new password.",
 } as const;
 
 export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
   const params = await searchParams;
   const error = params.error === "invalid-credentials" ? copy.invalid : null;
+  const notice = params.reset === "1" ? copy.reset : null;
 
   return (
     <main className="min-h-screen bg-[var(--bg)] px-4 py-8 text-[var(--text)]">
@@ -59,6 +63,7 @@ export default async function AdminLoginPage({
             </label>
 
             {error ? <p className="rounded-2xl border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-4 py-3 text-sm text-[#ffd5c4]">{error}</p> : null}
+            {notice ? <p className="rounded-2xl border border-[var(--line)] bg-white/5 px-4 py-3 text-sm text-[var(--text)]">{notice}</p> : null}
 
             <button
               type="submit"
@@ -67,6 +72,13 @@ export default async function AdminLoginPage({
               Sign in
             </button>
           </form>
+
+          <p className="mt-4 text-sm text-[var(--muted)]">
+            Need a reset?{" "}
+            <Link href="/admin/reset-password" className="text-[var(--text)] underline underline-offset-4">
+              Request password reset
+            </Link>
+          </p>
         </section>
       </div>
     </main>
