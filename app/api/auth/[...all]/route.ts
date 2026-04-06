@@ -13,7 +13,7 @@ import {
   acceptAdminInvite,
   ADMIN_SESSION_COOKIE,
 } from "@/lib/auth";
-import { createInviteEmail, createPasswordResetEmail, sendInviteEmail, sendPasswordResetEmail } from "@/lib/email/resend";
+import { createInviteEmail, sendInviteEmail, sendPasswordResetEmail } from "@/lib/email/resend";
 
 function getAction(request: Request) {
   const segments = new URL(request.url).pathname.split("/").filter(Boolean);
@@ -104,20 +104,11 @@ export async function POST(request: Request) {
 
     const reset = await createPasswordResetToken(body.email);
     if (!reset) {
-      return NextResponse.json({ ok: true, delivery: { ok: true, deliveryId: null }, emailPreview: null });
+      return NextResponse.json({ ok: true });
     }
 
-    const delivery = await sendPasswordResetEmail(reset.email, reset.resetUrl);
-    return NextResponse.json({
-      ok: true,
-      reset: {
-        email: reset.email,
-        expiresAt: reset.expiresAt,
-        resetUrl: reset.resetUrl,
-      },
-      emailPreview: delivery.preview ?? createPasswordResetEmail(reset.email, reset.resetUrl),
-      delivery,
-    });
+    await sendPasswordResetEmail(reset.email, reset.resetUrl);
+    return NextResponse.json({ ok: true });
   }
 
   if (action === "reset-password") {

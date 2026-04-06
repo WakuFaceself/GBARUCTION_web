@@ -1,11 +1,11 @@
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 
 import { and, eq, gt } from "drizzle-orm";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 
 import { createDb } from "@/lib/db/client";
 import { accounts, adminInvites, sessions, users, verificationTokens } from "@/lib/db/schema/auth";
-import { env, hasDatabaseUrl } from "@/lib/env";
+import { allowInMemoryFallback, env, hasDatabaseUrl } from "@/lib/env";
 
 export const ADMIN_SESSION_COOKIE = "gbaruction_admin_session";
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 3;
@@ -85,6 +85,13 @@ export class AdminAuthError extends Error {
   }
 }
 
+export class AuthConfigurationError extends Error {
+  constructor(message = "Authentication storage is not configured") {
+    super(message);
+    this.name = "AuthConfigurationError";
+  }
+}
+
 function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const derived = scryptSync(password, salt, 64).toString("hex");
@@ -112,6 +119,10 @@ function verifyPassword(password: string, hash: string | null | undefined) {
 }
 
 function getMemoryStore() {
+  if (!allowInMemoryFallback()) {
+    throw new AuthConfigurationError("DATABASE_URL is required for admin auth in production.");
+  }
+
   if (!globalThis.__gbaructionAuthStore) {
     globalThis.__gbaructionAuthStore = {
       users: [
@@ -176,20 +187,6 @@ export function getAdminSessionCookieOptions(expiresAt?: Date) {
 }
 
 export async function getAdminSession(): Promise<AdminSession | null> {
-  const headerStore = await headers();
-  const forcedSessionToken = headerStore.get("x-gbaruction-admin-session");
-
-  if (forcedSessionToken === "demo-admin") {
-    return {
-      token: forcedSessionToken,
-      user: {
-        id: "demo-admin",
-        email: "admin@example.com",
-        role: "admin",
-      },
-    };
-  }
-
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(ADMIN_SESSION_COOKIE)?.value;
 

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const headersMock = vi.fn();
-const cookiesMock = vi.fn();
 const createUploadUrlMock = vi.fn();
+const requireAdminSessionMock = vi.fn();
 
-vi.mock("next/headers", () => ({
-  headers: headersMock,
-  cookies: cookiesMock,
+vi.mock("@/lib/auth", () => ({
+  AdminAuthError: class AdminAuthError extends Error {},
+  AuthConfigurationError: class AuthConfigurationError extends Error {},
+  requireAdminSession: requireAdminSessionMock,
 }));
 
 vi.mock("@/lib/storage/r2", () => ({
@@ -15,16 +15,13 @@ vi.mock("@/lib/storage/r2", () => ({
 
 describe("upload presign route", () => {
   beforeEach(() => {
-    headersMock.mockReset();
-    cookiesMock.mockReset();
     createUploadUrlMock.mockReset();
+    requireAdminSessionMock.mockReset();
   });
 
   it("rejects requests without an admin session header", async () => {
-    headersMock.mockResolvedValue(new Headers());
-    cookiesMock.mockResolvedValue({
-      get: () => undefined,
-    });
+    const { AdminAuthError } = await import("@/lib/auth");
+    requireAdminSessionMock.mockRejectedValue(new AdminAuthError());
 
     const { POST } = await import("@/app/api/uploads/presign/route");
     const response = await POST(
@@ -40,9 +37,9 @@ describe("upload presign route", () => {
   });
 
   it("returns a signed url for authenticated admins", async () => {
-    headersMock.mockResolvedValue(new Headers([["x-gbaruction-admin-session", "demo-admin"]]));
-    cookiesMock.mockResolvedValue({
-      get: () => undefined,
+    requireAdminSessionMock.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com", role: "admin" },
+      token: "session-token",
     });
     createUploadUrlMock.mockResolvedValue("https://uploads.example.com/demo");
 
@@ -64,5 +61,24 @@ describe("upload presign route", () => {
       uploadUrl: "https://uploads.example.com/demo",
     });
     expect(createUploadUrlMock).toHaveBeenCalledWith(expect.stringContaining("poster.png"), "image/png");
+  });
+
+  it("rejects invalid upload metadata", async () => {
+    requireAdminSessionMock.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com", role: "admin" },
+      token: "session-token",
+    });
+
+    const { POST } = await import("@/app/api/uploads/presign/route");
+    const response = await POST(
+      new Request("http://localhost/api/uploads/presign", {
+        method: "POST",
+        body: JSON.stringify({ fileName: "../poster.png", contentType: "application/pdf", byteSize: 99_999_999 }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, reason: "invalid-upload-input" });
+    expect(createUploadUrlMock).not.toHaveBeenCalled();
   });
 });
