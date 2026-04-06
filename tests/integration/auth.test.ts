@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  AuthConfigurationError,
   acceptAdminInvite,
   acceptInvite,
   createAdminInvite,
@@ -37,9 +38,18 @@ describe("admin invite flow", () => {
   });
 
   it("accepts an invite and lets the invited admin sign in", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
+
     const invite = await createAdminInvite("writer@example.com");
     const accepted = await acceptAdminInvite(invite.token, "writer-password");
     const session = await createAdminSession("writer@example.com", "writer-password");
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
 
     expect(accepted).toEqual({ ok: true, email: "writer@example.com" });
     expect(session?.user.email).toBe("writer@example.com");
@@ -63,13 +73,13 @@ describe("admin invite flow", () => {
     expect(reset?.resetUrl).toBe(`https://admin.gbaruction.example/admin/reset-password/${reset?.token}`);
   });
 
-  it("falls back to localhost for absolute auth URLs when the base URL is unset", async () => {
+  it("rejects invite and reset URL generation when the auth base URL is missing", async () => {
     const previousUrl = process.env.BETTER_AUTH_URL;
     delete process.env.BETTER_AUTH_URL;
     globalThis.__gbaructionAuthStore = undefined;
 
-    const invite = await createAdminInvite("writer@example.com");
-    const reset = await createPasswordResetToken("admin@example.com");
+    const inviteResult = createAdminInvite("writer@example.com");
+    const resetResult = createPasswordResetToken("admin@example.com");
 
     if (previousUrl === undefined) {
       delete process.env.BETTER_AUTH_URL;
@@ -77,15 +87,24 @@ describe("admin invite flow", () => {
       process.env.BETTER_AUTH_URL = previousUrl;
     }
 
-    expect(invite.inviteUrl.startsWith("http://localhost:3000/")).toBe(true);
-    expect(reset?.resetUrl.startsWith("http://localhost:3000/")).toBe(true);
+    await expect(inviteResult).rejects.toBeInstanceOf(AuthConfigurationError);
+    await expect(resetResult).rejects.toBeInstanceOf(AuthConfigurationError);
   });
 
   it("resets the seeded admin password and invalidates the old one", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
+
     const reset = await createPasswordResetToken("admin@example.com");
     const result = await resetAdminPassword(reset?.token ?? "", "new-admin-password");
     const staleSession = await createAdminSession("admin@example.com", "gbaruction-admin");
     const freshSession = await createAdminSession("admin@example.com", "new-admin-password");
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
 
     expect(result).toEqual({ ok: true, email: "admin@example.com" });
     expect(staleSession).toBeNull();

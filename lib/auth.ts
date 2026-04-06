@@ -158,7 +158,13 @@ function buildInviteStatus(consumedAt: Date | null, expiresAt: Date): AdminInvit
 }
 
 function getAuthBaseUrl() {
-  return process.env.BETTER_AUTH_URL ?? env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const authBaseUrl = process.env.BETTER_AUTH_URL;
+
+  if (!authBaseUrl) {
+    throw new AuthConfigurationError("BETTER_AUTH_URL is required for admin email links.");
+  }
+
+  return authBaseUrl;
 }
 
 function buildAbsoluteAuthUrl(path: string) {
@@ -390,6 +396,7 @@ export async function createAdminInvite(email: string, role = "admin") {
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
   const normalizedEmail = email.toLowerCase();
+  const inviteUrl = buildInviteUrl(token);
 
   if (hasDatabaseUrl()) {
     const db = createDb();
@@ -411,7 +418,7 @@ export async function createAdminInvite(email: string, role = "admin") {
       status: buildInviteStatus(invite.consumedAt, invite.expiresAt),
       expiresAt: invite.expiresAt.toISOString(),
       consumedAt: invite.consumedAt?.toISOString() ?? null,
-      inviteUrl: buildInviteUrl(invite.token),
+      inviteUrl,
     } satisfies AdminInviteRecord;
   }
 
@@ -434,7 +441,7 @@ export async function createAdminInvite(email: string, role = "admin") {
     status: buildInviteStatus(invite.consumedAt, invite.expiresAt),
     expiresAt: invite.expiresAt.toISOString(),
     consumedAt: null,
-    inviteUrl: buildInviteUrl(invite.token),
+    inviteUrl,
   } satisfies AdminInviteRecord;
 }
 
@@ -591,6 +598,7 @@ export async function createPasswordResetToken(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + RESET_TTL_MS);
+  const resetUrl = buildAbsoluteAuthUrl(`/admin/reset-password/${token}`);
 
   if (hasDatabaseUrl()) {
     const db = createDb();
@@ -611,7 +619,7 @@ export async function createPasswordResetToken(email: string) {
       email: normalizedEmail,
       token,
       expiresAt,
-      resetUrl: buildAbsoluteAuthUrl(`/admin/reset-password/${token}`),
+      resetUrl,
     };
   }
 
@@ -632,7 +640,7 @@ export async function createPasswordResetToken(email: string) {
     email: normalizedEmail,
     token,
     expiresAt,
-    resetUrl: buildAbsoluteAuthUrl(`/admin/reset-password/${token}`),
+    resetUrl,
   };
 }
 
