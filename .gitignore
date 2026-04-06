@@ -6,6 +6,7 @@ build/
 .turbo/
 .cache/
 .vercel/
+.vercel.team-backup/
 .superpowers/
 .worktrees/
 package-lock.json

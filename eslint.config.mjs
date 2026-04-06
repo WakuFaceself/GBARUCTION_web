@@ -14,7 +14,10 @@ const config = [
   {
     ignores: [
       ".next/**",
+      "**/.next/**",
       "node_modules/**",
+      ".worktrees/**",
+      ".vercel.team-backup/**",
       "next-env.d.ts",
       "postcss.config.mjs",
       "eslint.config.mjs",
