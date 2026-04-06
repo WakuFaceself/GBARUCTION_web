@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
+  AuthConfigurationError,
   createAdminInvite,
   createAdminSession,
   createPasswordResetToken,
@@ -23,6 +24,8 @@ export type InviteComposerState = {
   delivery: { ok: boolean; deliveryId: string | null; reason?: string } | null;
   error: string | null;
 };
+
+const inviteLinkError = "Invite links are temporarily unavailable.";
 
 export async function loginAdminAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -67,7 +70,23 @@ export async function createAdminInviteAction(
     };
   }
 
-  const invite = await createAdminInvite(email, role);
+  let invite: Awaited<ReturnType<typeof createAdminInvite>>;
+  try {
+    invite = await createAdminInvite(email, role);
+  } catch (error) {
+    if (error instanceof AuthConfigurationError) {
+      return {
+        success: false,
+        invite: null,
+        emailPreview: null,
+        delivery: null,
+        error: inviteLinkError,
+      };
+    }
+
+    throw error;
+  }
+
   const deliveryResult = await sendInviteEmail(invite.email, invite.inviteUrl);
 
   return {
@@ -88,7 +107,16 @@ export async function requestPasswordResetAction(formData: FormData) {
     redirect("/admin/reset-password?error=missing-email");
   }
 
-  const reset = await createPasswordResetToken(email);
+  let reset: Awaited<ReturnType<typeof createPasswordResetToken>>;
+  try {
+    reset = await createPasswordResetToken(email);
+  } catch (error) {
+    if (error instanceof AuthConfigurationError) {
+      redirect("/admin/reset-password?error=auth-config-missing");
+    }
+
+    throw error;
+  }
 
   if (!reset) {
     redirect("/admin/reset-password?sent=1");

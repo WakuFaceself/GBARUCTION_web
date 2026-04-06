@@ -3,6 +3,7 @@ import { requestPasswordResetAction } from "@/lib/actions/admin/auth";
 const copy = {
   sent: "If the account exists, a reset link has been prepared.",
   error: "Email is required.",
+  authConfigMissing: "Password reset links are temporarily unavailable.",
 } as const;
 
 export default async function AdminPasswordResetRequestPage({
@@ -13,6 +14,7 @@ export default async function AdminPasswordResetRequestPage({
   const params = await searchParams;
   const notice = params.sent === "1" ? copy.sent : null;
   const error = params.error === "missing-email" ? copy.error : null;
+  const configError = params.error === "auth-config-missing" ? copy.authConfigMissing : null;
   const mode = params.mode === "queued" ? "Resend queued the delivery." : params.mode ? "Preview mode active." : null;
 
   return (
@@ -36,7 +38,11 @@ export default async function AdminPasswordResetRequestPage({
             />
           </label>
 
-          {error ? <p className="rounded-2xl border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-4 py-3 text-sm text-[#ffd5c4]">{error}</p> : null}
+          {error || configError ? (
+            <p className="rounded-2xl border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-4 py-3 text-sm text-[#ffd5c4]">
+              {error ?? configError}
+            </p>
+          ) : null}
           {notice ? <p className="rounded-2xl border border-[var(--line)] bg-white/5 px-4 py-3 text-sm text-[var(--text)]">{notice}</p> : null}
           {mode ? <p className="rounded-2xl border border-[var(--line)] bg-black/20 px-4 py-3 text-sm text-[var(--muted)]">{mode}</p> : null}
 

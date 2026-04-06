@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import {
+  AuthConfigurationError,
   createAdminInvite,
   createAdminSession,
   createPasswordResetToken,
@@ -71,7 +72,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, reason: "missing-email" }, { status: 400 });
     }
 
-    const invite = await createAdminInvite(body.email, body.role ?? "admin");
+    let invite: Awaited<ReturnType<typeof createAdminInvite>>;
+    try {
+      invite = await createAdminInvite(body.email, body.role ?? "admin");
+    } catch (error) {
+      if (error instanceof AuthConfigurationError) {
+        return NextResponse.json({ ok: false, reason: "auth-config-missing" }, { status: 503 });
+      }
+
+      throw error;
+    }
+
     const delivery = await sendInviteEmail(invite.email, invite.inviteUrl);
 
     return NextResponse.json({
@@ -102,7 +113,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, reason: "missing-email" }, { status: 400 });
     }
 
-    const reset = await createPasswordResetToken(body.email);
+    let reset: Awaited<ReturnType<typeof createPasswordResetToken>>;
+    try {
+      reset = await createPasswordResetToken(body.email);
+    } catch (error) {
+      if (error instanceof AuthConfigurationError) {
+        return NextResponse.json({ ok: false, reason: "auth-config-missing" }, { status: 503 });
+      }
+
+      throw error;
+    }
+
     if (!reset) {
       return NextResponse.json({ ok: true });
     }

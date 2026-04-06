@@ -598,7 +598,6 @@ export async function createPasswordResetToken(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + RESET_TTL_MS);
-  const resetUrl = buildAbsoluteAuthUrl(`/admin/reset-password/${token}`);
 
   if (hasDatabaseUrl()) {
     const db = createDb();
@@ -607,6 +606,8 @@ export async function createPasswordResetToken(email: string) {
     if (!user || user.role !== "admin") {
       return null;
     }
+
+    const resetUrl = buildAbsoluteAuthUrl(`/admin/reset-password/${token}`);
 
     await db.insert(verificationTokens).values({
       identifier: normalizedEmail,
@@ -628,6 +629,8 @@ export async function createPasswordResetToken(email: string) {
   if (!user) {
     return null;
   }
+
+  const resetUrl = buildAbsoluteAuthUrl(`/admin/reset-password/${token}`);
 
   store.verificationTokens.unshift({
     id: randomUUID(),

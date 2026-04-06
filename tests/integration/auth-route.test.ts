@@ -1,11 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createAdminInviteAction } from "@/lib/actions/admin/auth";
 
-const cookiesMock = vi.fn();
-const getAdminSessionMock = vi.fn();
-const createAdminSessionMock = vi.fn();
-const destroyAdminSessionMock = vi.fn();
-const createPasswordResetTokenMock = vi.fn();
-const sendPasswordResetEmailMock = vi.fn();
+const {
+  cookiesMock,
+  getAdminSessionMock,
+  createAdminSessionMock,
+  destroyAdminSessionMock,
+  requireAdminSessionMock,
+  createAdminInviteMock,
+  createPasswordResetTokenMock,
+  sendPasswordResetEmailMock,
+  AuthConfigurationError,
+} = vi.hoisted(() => {
+  class AuthConfigurationError extends Error {
+    constructor(message = "Authentication storage is not configured") {
+      super(message);
+      this.name = "AuthConfigurationError";
+    }
+  }
+
+  return {
+    cookiesMock: vi.fn(),
+    getAdminSessionMock: vi.fn(),
+    createAdminSessionMock: vi.fn(),
+    destroyAdminSessionMock: vi.fn(),
+    requireAdminSessionMock: vi.fn(),
+    createAdminInviteMock: vi.fn(),
+    createPasswordResetTokenMock: vi.fn(),
+    sendPasswordResetEmailMock: vi.fn(),
+    AuthConfigurationError,
+  };
+});
 
 vi.mock("next/headers", () => ({
   cookies: cookiesMock,
@@ -13,15 +38,16 @@ vi.mock("next/headers", () => ({
 
 vi.mock("@/lib/auth", () => ({
   ADMIN_SESSION_COOKIE: "gbaruction_admin_session",
+  AuthConfigurationError,
   getAdminSession: getAdminSessionMock,
   createAdminSession: createAdminSessionMock,
   destroyAdminSession: destroyAdminSessionMock,
   createPasswordResetToken: createPasswordResetTokenMock,
   getAdminSessionCookieOptions: vi.fn(() => ({ httpOnly: true, sameSite: "lax", secure: false, path: "/" })),
-  requireAdminSession: vi.fn(),
+  requireAdminSession: requireAdminSessionMock,
   resetAdminPassword: vi.fn(),
   acceptAdminInvite: vi.fn(),
-  createAdminInvite: vi.fn(),
+  createAdminInvite: createAdminInviteMock,
 }));
 
 vi.mock("@/lib/email/resend", () => ({
@@ -36,6 +62,8 @@ describe("auth api route", () => {
     getAdminSessionMock.mockReset();
     createAdminSessionMock.mockReset();
     destroyAdminSessionMock.mockReset();
+    requireAdminSessionMock.mockReset();
+    createAdminInviteMock.mockReset();
     createPasswordResetTokenMock.mockReset();
     sendPasswordResetEmailMock.mockReset();
     cookiesMock.mockResolvedValue({
@@ -74,5 +102,65 @@ describe("auth api route", () => {
       "admin@example.com",
       "https://admin.gbaruction.example/admin/reset-password/secret-token",
     );
+  });
+
+  it("forgot-password returns a controlled error when the auth base URL is missing", async () => {
+    createPasswordResetTokenMock.mockRejectedValueOnce(new AuthConfigurationError("BETTER_AUTH_URL is required for admin email links."));
+
+    const { POST } = await import("@/app/api/auth/[...all]/route");
+    const response = await POST(
+      new Request("http://localhost/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: "admin@example.com" }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false, reason: "auth-config-missing" });
+    expect(sendPasswordResetEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("invite returns a controlled error when the auth base URL is missing", async () => {
+    requireAdminSessionMock.mockResolvedValue(undefined);
+    createAdminInviteMock.mockRejectedValueOnce(new AuthConfigurationError("BETTER_AUTH_URL is required for admin email links."));
+
+    const { POST } = await import("@/app/api/auth/[...all]/route");
+    const response = await POST(
+      new Request("http://localhost/api/auth/invite", {
+        method: "POST",
+        body: JSON.stringify({ email: "writer@example.com", role: "admin" }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false, reason: "auth-config-missing" });
+  });
+
+  it("invite action returns a controlled error when the auth base URL is missing", async () => {
+    createAdminInviteMock.mockRejectedValueOnce(new AuthConfigurationError("BETTER_AUTH_URL is required for admin email links."));
+
+    const result = await createAdminInviteAction(
+      {
+        success: false,
+        invite: null,
+        emailPreview: null,
+        delivery: null,
+        error: null,
+      },
+      (() => {
+        const formData = new FormData();
+        formData.set("email", "writer@example.com");
+        formData.set("role", "admin");
+        return formData;
+      })(),
+    );
+
+    expect(result).toEqual({
+      success: false,
+      invite: null,
+      emailPreview: null,
+      delivery: null,
+      error: "Invite links are temporarily unavailable.",
+    });
   });
 });

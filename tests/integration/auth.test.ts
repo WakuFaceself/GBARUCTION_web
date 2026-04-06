@@ -91,6 +91,22 @@ describe("admin invite flow", () => {
     await expect(resetResult).rejects.toBeInstanceOf(AuthConfigurationError);
   });
 
+  it("keeps forgot-password generic success for unknown emails when the auth base URL is missing", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    delete process.env.BETTER_AUTH_URL;
+    globalThis.__gbaructionAuthStore = undefined;
+
+    const reset = await createPasswordResetToken("missing@example.com");
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
+
+    expect(reset).toBeNull();
+  });
+
   it("resets the seeded admin password and invalidates the old one", async () => {
     const previousUrl = process.env.BETTER_AUTH_URL;
     process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
