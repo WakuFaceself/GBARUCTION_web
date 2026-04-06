@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AdminAuthError, AuthConfigurationError, requireAdminSession } from "@/lib/auth";
-import { createUploadUrl } from "@/lib/storage/r2";
+import { createMediaAssetRecord } from "@/lib/queries/admin/media";
+import { assertObjectExists, buildPublicAssetUrl, UploadObjectMissingError } from "@/lib/storage/r2";
 
-const uploadSchema = z.object({
+const finalizeUploadSchema = z.object({
+  objectKey: z.string().trim().min(1).max(240),
   fileName: z
     .string()
     .trim()
@@ -12,7 +14,7 @@ const uploadSchema = z.object({
     .max(160)
     .regex(/^[a-zA-Z0-9._-]+$/, "Only simple file names are allowed."),
   contentType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
-  byteSize: z.number().int().min(1).max(10 * 1024 * 1024).optional(),
+  byteSize: z.number().int().min(1).max(10 * 1024 * 1024),
   altText: z.string().trim().max(240).optional(),
 });
 
@@ -20,19 +22,22 @@ export async function POST(request: Request) {
   try {
     await requireAdminSession();
 
-    const body = uploadSchema.parse(await request.json());
+    const body = finalizeUploadSchema.parse(await request.json());
 
-    const objectKey = `uploads/${Date.now()}-${body.fileName}`;
-    const uploadUrl = await createUploadUrl(objectKey, body.contentType);
+    await assertObjectExists(body.objectKey);
+
+    const asset = await createMediaAssetRecord({
+      fileName: body.fileName,
+      mimeType: body.contentType,
+      byteSize: body.byteSize,
+      objectKey: body.objectKey,
+      publicUrl: buildPublicAssetUrl(body.objectKey),
+      altText: body.altText ?? null,
+    });
 
     return NextResponse.json({
       ok: true,
-      fileName: body.fileName,
-      contentType: body.contentType,
-      byteSize: body.byteSize ?? 0,
-      altText: body.altText ?? null,
-      objectKey,
-      uploadUrl,
+      asset,
     });
   } catch (error) {
     if (error instanceof AdminAuthError) {
@@ -41,6 +46,10 @@ export async function POST(request: Request) {
 
     if (error instanceof AuthConfigurationError) {
       return NextResponse.json({ ok: false, reason: "auth-not-configured" }, { status: 503 });
+    }
+
+    if (error instanceof UploadObjectMissingError) {
+      return NextResponse.json({ ok: false, reason: "upload-not-found" }, { status: 409 });
     }
 
     if (error instanceof z.ZodError) {

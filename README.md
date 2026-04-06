@@ -94,5 +94,5 @@ Before production, verify:
 
 - environment variables are set in Vercel
 - invite/password email flow is connected to Resend
-- R2 upload credentials are valid
+- R2 upload credentials are valid and the `presign -> finalize` upload flow stores assets only after the object exists
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm test:e2e` all pass

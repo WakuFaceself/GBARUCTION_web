@@ -1,7 +1,14 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { env } from "@/lib/env";
+
+export class UploadObjectMissingError extends Error {
+  constructor(objectKey: string) {
+    super(`Uploaded object does not exist yet: ${objectKey}`);
+    this.name = "UploadObjectMissingError";
+  }
+}
 
 function createR2Client() {
   return new S3Client({
@@ -38,4 +45,26 @@ export async function createReadUrl(objectKey: string) {
   });
 
   return getSignedUrl(client, command, { expiresIn: 60 * 5 });
+}
+
+export async function assertObjectExists(objectKey: string) {
+  const client = createR2Client();
+  const command = new HeadObjectCommand({
+    Bucket: env.R2_BUCKET,
+    Key: objectKey,
+  });
+
+  try {
+    await client.send(command);
+  } catch {
+    throw new UploadObjectMissingError(objectKey);
+  }
+}
+
+export function buildPublicAssetUrl(objectKey: string) {
+  if (!env.R2_PUBLIC_URL) {
+    return null;
+  }
+
+  return `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${objectKey}`;
 }
