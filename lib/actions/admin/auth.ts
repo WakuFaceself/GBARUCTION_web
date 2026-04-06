@@ -107,24 +107,23 @@ export async function requestPasswordResetAction(formData: FormData) {
     redirect("/admin/reset-password?error=missing-email");
   }
 
-  let reset: Awaited<ReturnType<typeof createPasswordResetToken>>;
   try {
-    reset = await createPasswordResetToken(email);
+    const reset = await createPasswordResetToken(email);
+
+    if (!reset) {
+      redirect("/admin/reset-password?sent=1");
+    }
+
+    const deliveryResult = await sendPasswordResetEmail(reset.email, reset.resetUrl);
+    const status = deliveryResult.ok ? "queued" : deliveryResult.reason ?? "preview";
+    redirect(`/admin/reset-password?sent=1&mode=${status}`);
   } catch (error) {
     if (error instanceof AuthConfigurationError) {
-      redirect("/admin/reset-password?error=auth-config-missing");
+      redirect("/admin/reset-password?sent=1");
     }
 
     throw error;
   }
-
-  if (!reset) {
-    redirect("/admin/reset-password?sent=1");
-  }
-
-  const deliveryResult = await sendPasswordResetEmail(reset.email, reset.resetUrl);
-  const status = deliveryResult.ok ? "queued" : deliveryResult.reason ?? "preview";
-  redirect(`/admin/reset-password?sent=1&mode=${status}`);
 }
 
 export async function resetPasswordAction(formData: FormData) {

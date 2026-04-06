@@ -8,6 +8,8 @@ import {
   createAdminSession,
   createPasswordResetToken,
   getAdminSessionCookieOptions,
+  getInviteByToken,
+  listAdminInvites,
   resetAdminPassword,
 } from "@/lib/auth";
 
@@ -89,6 +91,28 @@ describe("admin invite flow", () => {
 
     await expect(inviteResult).rejects.toBeInstanceOf(AuthConfigurationError);
     await expect(resetResult).rejects.toBeInstanceOf(AuthConfigurationError);
+  });
+
+  it("keeps invite list and detail reads working after the auth base URL is removed", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
+    globalThis.__gbaructionAuthStore = undefined;
+
+    const invite = await createAdminInvite("writer@example.com");
+
+    delete process.env.BETTER_AUTH_URL;
+
+    const invites = await listAdminInvites();
+    const inviteByToken = await getInviteByToken(invite.token);
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
+
+    expect(invites[0]?.inviteUrl).toBe(`/admin/invite/${invite.token}`);
+    expect(inviteByToken?.inviteUrl).toBe(`/admin/invite/${invite.token}`);
   });
 
   it("keeps forgot-password generic success for unknown emails when the auth base URL is missing", async () => {

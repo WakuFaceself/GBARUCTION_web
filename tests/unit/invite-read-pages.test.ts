@@ -3,38 +3,21 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  AuthConfigurationError,
   listAdminInvitesMock,
   getInviteByTokenMock,
   inviteComposerMock,
   notFoundMock,
-  redirectMock,
 } = vi.hoisted(() => {
-  class AuthConfigurationError extends Error {
-    constructor(message = "Authentication storage is not configured") {
-      super(message);
-      this.name = "AuthConfigurationError";
-    }
-  }
-
   return {
-    AuthConfigurationError,
     listAdminInvitesMock: vi.fn(),
     getInviteByTokenMock: vi.fn(),
     inviteComposerMock: vi.fn(() => createElement("div", null, "InviteComposer")),
     notFoundMock: vi.fn(),
-    redirectMock: vi.fn(),
   };
 });
 
-vi.mock("next/navigation", () => ({
-  notFound: notFoundMock,
-  redirect: redirectMock,
-}));
-
 vi.mock("@/lib/auth", () => ({
   ADMIN_PASSWORD_MIN_LENGTH: 8,
-  AuthConfigurationError,
   listAdminInvites: listAdminInvitesMock,
   getInviteByToken: getInviteByTokenMock,
   acceptAdminInvite: vi.fn(),
@@ -50,21 +33,40 @@ describe("invite read pages", () => {
     getInviteByTokenMock.mockReset();
     inviteComposerMock.mockClear();
     notFoundMock.mockReset();
-    redirectMock.mockReset();
   });
 
-  it("shows a controlled message when invite list URLs cannot be built", async () => {
-    listAdminInvitesMock.mockRejectedValueOnce(new AuthConfigurationError("BETTER_AUTH_URL is required for admin email links."));
+  it("renders invite list links without needing the auth base URL", async () => {
+    listAdminInvitesMock.mockResolvedValueOnce([
+      {
+        id: "invite-1",
+        email: "writer@example.com",
+        token: "secret-token",
+        role: "admin",
+        status: "pending",
+        expiresAt: "2026-04-09T12:00:00.000Z",
+        consumedAt: null,
+        inviteUrl: "/admin/invite/secret-token",
+      },
+    ]);
 
     const { default: AdminInvitesPage } = await import("@/app/(admin)/admin/invites/page");
     const html = renderToStaticMarkup(await AdminInvitesPage());
 
-    expect(html).toContain("Invite links are temporarily unavailable.");
+    expect(html).toContain("/admin/invite/secret-token");
     expect(notFoundMock).not.toHaveBeenCalled();
   });
 
-  it("shows a controlled message when invite details cannot be loaded", async () => {
-    getInviteByTokenMock.mockRejectedValueOnce(new AuthConfigurationError("BETTER_AUTH_URL is required for admin email links."));
+  it("renders invite details without needing the auth base URL", async () => {
+    getInviteByTokenMock.mockResolvedValueOnce({
+      id: "invite-1",
+      email: "writer@example.com",
+      token: "secret-token",
+      role: "admin",
+      status: "pending",
+      expiresAt: "2026-04-09T12:00:00.000Z",
+      consumedAt: null,
+      inviteUrl: "/admin/invite/secret-token",
+    });
 
     const { default: AdminInviteAcceptPage } = await import("@/app/(auth)/admin/invite/[token]/page");
     const html = renderToStaticMarkup(
@@ -74,8 +76,8 @@ describe("invite read pages", () => {
       }),
     );
 
-    expect(html).toContain("Invite links are temporarily unavailable.");
-    expect(html).toContain("Invite details are temporarily unavailable.");
+    expect(html).toContain("writer@example.com");
+    expect(html).toContain("Activate account");
     expect(notFoundMock).not.toHaveBeenCalled();
   });
 });

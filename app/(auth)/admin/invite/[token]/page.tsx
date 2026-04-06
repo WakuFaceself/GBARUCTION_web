@@ -2,7 +2,7 @@ import React from "react";
 
 import { notFound, redirect } from "next/navigation";
 
-import { ADMIN_PASSWORD_MIN_LENGTH, acceptAdminInvite, AuthConfigurationError, getInviteByToken } from "@/lib/auth";
+import { ADMIN_PASSWORD_MIN_LENGTH, acceptAdminInvite, getInviteByToken } from "@/lib/auth";
 
 async function acceptInviteAction(formData: FormData) {
   "use server";
@@ -33,20 +33,9 @@ export default async function AdminInviteAcceptPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const [{ token }, resolvedSearchParams] = await Promise.all([params, searchParams]);
-  let invite = null;
-  let configError: string | null = null;
+  const invite = await getInviteByToken(token);
 
-  try {
-    invite = await getInviteByToken(token);
-  } catch (error) {
-    if (error instanceof AuthConfigurationError) {
-      configError = "Invite links are temporarily unavailable.";
-    } else {
-      throw error;
-    }
-  }
-
-  if (!invite && !configError) {
+  if (!invite) {
     notFound();
   }
 
@@ -58,51 +47,37 @@ export default async function AdminInviteAcceptPage({
         <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Invite only</p>
         <h1 className="mt-3 text-4xl font-black uppercase leading-none">Accept admin invite</h1>
         <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-          {invite ? (
-            <>
-              You are accepting access for <span className="text-[var(--text)]">{invite.email}</span>.
-            </>
-          ) : (
-            "Invite details are temporarily unavailable."
-          )}
+          You are accepting access for <span className="text-[var(--text)]">{invite.email}</span>.
         </p>
 
-        {configError ? (
-          <p className="mt-6 rounded-2xl border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-4 py-3 text-sm text-[#ffd5c4]">
-            {configError}
-          </p>
-        ) : invite ? (
-          <div className="mt-6 rounded-[1.5rem] border border-[var(--line)] bg-black/20 p-4 text-sm text-[var(--muted)]">
-            <p>Status: {invite.status}</p>
-            <p>Expires: {new Date(invite.expiresAt).toLocaleString("en-US")}</p>
-          </div>
-        ) : null}
+        <div className="mt-6 rounded-[1.5rem] border border-[var(--line)] bg-black/20 p-4 text-sm text-[var(--muted)]">
+          <p>Status: {invite.status}</p>
+          <p>Expires: {new Date(invite.expiresAt).toLocaleString("en-US")}</p>
+        </div>
 
-        {invite ? (
-          <form action={acceptInviteAction} className="mt-6 space-y-4">
-            <input type="hidden" name="token" value={invite.token} />
+        <form action={acceptInviteAction} className="mt-6 space-y-4">
+          <input type="hidden" name="token" value={invite.token} />
 
-            <label className="block space-y-2">
-              <span className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">New password</span>
-              <input
-                type="password"
-                name="password"
-                minLength={ADMIN_PASSWORD_MIN_LENGTH}
-                required
-                className="w-full rounded-3xl border border-[var(--line)] bg-black/20 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--accent)]"
-              />
-            </label>
+          <label className="block space-y-2">
+            <span className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">New password</span>
+            <input
+              type="password"
+              name="password"
+              minLength={ADMIN_PASSWORD_MIN_LENGTH}
+              required
+              className="w-full rounded-3xl border border-[var(--line)] bg-black/20 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--accent)]"
+            />
+          </label>
 
-            {error ? <p className="rounded-2xl border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-4 py-3 text-sm text-[#ffd5c4]">{error}</p> : null}
+          {error ? <p className="rounded-2xl border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-4 py-3 text-sm text-[#ffd5c4]">{error}</p> : null}
 
-            <button
-              type="submit"
-              className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#120a06]"
-            >
-              Activate account
-            </button>
-          </form>
-        ) : null}
+          <button
+            type="submit"
+            className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#120a06]"
+          >
+            Activate account
+          </button>
+        </form>
       </div>
     </main>
   );

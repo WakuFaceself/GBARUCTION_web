@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       reset = await createPasswordResetToken(body.email);
     } catch (error) {
       if (error instanceof AuthConfigurationError) {
-        return NextResponse.json({ ok: false, reason: "auth-config-missing" }, { status: 503 });
+        return NextResponse.json({ ok: true });
       }
 
       throw error;

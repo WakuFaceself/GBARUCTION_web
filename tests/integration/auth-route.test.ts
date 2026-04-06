@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createAdminInviteAction } from "@/lib/actions/admin/auth";
+import { createAdminInviteAction, requestPasswordResetAction } from "@/lib/actions/admin/auth";
 
 const {
   cookiesMock,
   getAdminSessionMock,
   createAdminSessionMock,
   destroyAdminSessionMock,
+  redirectMock,
   requireAdminSessionMock,
   createAdminInviteMock,
   acceptAdminInviteMock,
@@ -26,6 +27,9 @@ const {
     getAdminSessionMock: vi.fn(),
     createAdminSessionMock: vi.fn(),
     destroyAdminSessionMock: vi.fn(),
+    redirectMock: vi.fn((...args) => {
+      throw new Error(`redirect:${args[0]}`);
+    }),
     requireAdminSessionMock: vi.fn(),
     createAdminInviteMock: vi.fn(),
     acceptAdminInviteMock: vi.fn(),
@@ -38,6 +42,10 @@ const {
 
 vi.mock("next/headers", () => ({
   cookies: cookiesMock,
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -66,6 +74,7 @@ describe("auth api route", () => {
     getAdminSessionMock.mockReset();
     createAdminSessionMock.mockReset();
     destroyAdminSessionMock.mockReset();
+    redirectMock.mockClear();
     requireAdminSessionMock.mockReset();
     createAdminInviteMock.mockReset();
     acceptAdminInviteMock.mockReset();
@@ -110,7 +119,7 @@ describe("auth api route", () => {
     );
   });
 
-  it("forgot-password returns a controlled error when the auth base URL is missing", async () => {
+  it("forgot-password stays generic when the auth base URL is missing", async () => {
     createPasswordResetTokenMock.mockRejectedValueOnce(new AuthConfigurationError("BETTER_AUTH_URL is required for admin email links."));
 
     const { POST } = await import("@/app/api/auth/[...all]/route");
@@ -121,9 +130,23 @@ describe("auth api route", () => {
       }),
     );
 
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ ok: false, reason: "auth-config-missing" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
     expect(sendPasswordResetEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("request-password-reset action stays generic when the auth base url is missing", async () => {
+    createPasswordResetTokenMock.mockRejectedValueOnce(new AuthConfigurationError("BETTER_AUTH_URL is required for admin email links."));
+
+    await expect(
+      requestPasswordResetAction(
+        (() => {
+          const formData = new FormData();
+          formData.set("email", "admin@example.com");
+          return formData;
+        })(),
+      ),
+    ).rejects.toThrow("redirect:/admin/reset-password?sent=1");
   });
 
   it("invite returns a controlled error when the auth base URL is missing", async () => {

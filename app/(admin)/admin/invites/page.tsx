@@ -1,21 +1,10 @@
 import React from "react";
 
 import { InviteComposer } from "@/components/admin/invite-composer";
-import { AuthConfigurationError, type AdminInviteRecord, listAdminInvites } from "@/lib/auth";
+import { listAdminInvites } from "@/lib/auth";
 
 export default async function AdminInvitesPage() {
-  let invites: AdminInviteRecord[] = [];
-  let configError: string | null = null;
-
-  try {
-    invites = await listAdminInvites();
-  } catch (error) {
-    if (error instanceof AuthConfigurationError) {
-      configError = "Invite links are temporarily unavailable.";
-    } else {
-      throw error;
-    }
-  }
+  const invites = await listAdminInvites();
 
   return (
     <section className="space-y-6">
@@ -31,11 +20,6 @@ export default async function AdminInvitesPage() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <InviteComposer />
-          {configError ? (
-            <p className="rounded-2xl border border-[#ff8a63]/30 bg-[#ff8a63]/10 px-4 py-3 text-sm text-[#ffd5c4]">
-              {configError}
-            </p>
-          ) : null}
           <div className="mt-5 divide-y divide-[var(--line)]">
             {invites.map((invite) => (
               <div key={invite.email} className="flex items-center justify-between py-4 text-sm">

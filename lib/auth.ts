@@ -184,6 +184,10 @@ function buildInviteUrl(token: string) {
   return buildAbsoluteAuthUrl(`/admin/invite/${token}`);
 }
 
+function buildInvitePath(token: string) {
+  return `/admin/invite/${token}`;
+}
+
 export function acceptInvite(consumedAt: Date | null, expiresAt: Date): InviteAcceptanceResult {
   if (consumedAt) {
     return { ok: false, reason: "invite-used" };
@@ -470,7 +474,7 @@ export async function listAdminInvites(): Promise<AdminInviteRecord[]> {
         status: buildInviteStatus(row.consumedAt, row.expiresAt),
         expiresAt: row.expiresAt.toISOString(),
         consumedAt: row.consumedAt?.toISOString() ?? null,
-        inviteUrl: buildInviteUrl(row.token),
+        inviteUrl: buildInvitePath(row.token),
       }));
   }
 
@@ -483,7 +487,7 @@ export async function listAdminInvites(): Promise<AdminInviteRecord[]> {
     status: buildInviteStatus(invite.consumedAt, invite.expiresAt),
     expiresAt: invite.expiresAt.toISOString(),
     consumedAt: invite.consumedAt?.toISOString() ?? null,
-    inviteUrl: buildInviteUrl(invite.token),
+    inviteUrl: buildInvitePath(invite.token),
   }));
 }
 
@@ -503,7 +507,7 @@ export async function getInviteByToken(token: string): Promise<AdminInviteRecord
       status: buildInviteStatus(invite.consumedAt, invite.expiresAt),
       expiresAt: invite.expiresAt.toISOString(),
       consumedAt: invite.consumedAt?.toISOString() ?? null,
-      inviteUrl: buildInviteUrl(invite.token),
+      inviteUrl: buildInvitePath(invite.token),
     };
   }
 
@@ -521,7 +525,7 @@ export async function getInviteByToken(token: string): Promise<AdminInviteRecord
     status: buildInviteStatus(invite.consumedAt, invite.expiresAt),
     expiresAt: invite.expiresAt.toISOString(),
     consumedAt: invite.consumedAt?.toISOString() ?? null,
-    inviteUrl: buildInviteUrl(invite.token),
+    inviteUrl: buildInvitePath(invite.token),
   };
 }
 
