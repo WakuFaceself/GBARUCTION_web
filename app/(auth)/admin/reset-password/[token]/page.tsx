@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 
 import { resetPasswordAction } from "@/lib/actions/admin/auth";
-import { getPasswordResetTokenRecord } from "@/lib/auth";
+import { ADMIN_PASSWORD_MIN_LENGTH, getPasswordResetTokenRecord } from "@/lib/auth";
 
 const errorCopy: Record<string, string> = {
   "token-not-found": "Reset link is invalid.",
   "token-expired": "Reset link has expired.",
+  "password-too-short": `Password must be at least ${ADMIN_PASSWORD_MIN_LENGTH} characters.`,
 };
 
 export default async function AdminPasswordResetPage({
@@ -46,7 +47,7 @@ export default async function AdminPasswordResetPage({
             <input
               type="password"
               name="password"
-              minLength={8}
+              minLength={ADMIN_PASSWORD_MIN_LENGTH}
               required
               className="w-full rounded-3xl border border-[var(--line)] bg-black/20 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--accent)]"
             />

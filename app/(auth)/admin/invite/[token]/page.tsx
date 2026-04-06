@@ -2,7 +2,7 @@ import React from "react";
 
 import { notFound, redirect } from "next/navigation";
 
-import { acceptAdminInvite, AuthConfigurationError, getInviteByToken } from "@/lib/auth";
+import { ADMIN_PASSWORD_MIN_LENGTH, acceptAdminInvite, AuthConfigurationError, getInviteByToken } from "@/lib/auth";
 
 async function acceptInviteAction(formData: FormData) {
   "use server";
@@ -22,6 +22,7 @@ const errorCopy: Record<string, string> = {
   "invite-not-found": "Invite not found.",
   "invite-used": "This invite has already been used.",
   "invite-expired": "This invite has expired.",
+  "password-too-short": `Password must be at least ${ADMIN_PASSWORD_MIN_LENGTH} characters.`,
 };
 
 export default async function AdminInviteAcceptPage({
@@ -86,7 +87,7 @@ export default async function AdminInviteAcceptPage({
               <input
                 type="password"
                 name="password"
-                minLength={8}
+                minLength={ADMIN_PASSWORD_MIN_LENGTH}
                 required
                 className="w-full rounded-3xl border border-[var(--line)] bg-black/20 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--accent)]"
               />

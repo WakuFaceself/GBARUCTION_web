@@ -33,6 +33,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/auth", () => ({
+  ADMIN_PASSWORD_MIN_LENGTH: 8,
   AuthConfigurationError,
   listAdminInvites: listAdminInvitesMock,
   getInviteByToken: getInviteByTokenMock,

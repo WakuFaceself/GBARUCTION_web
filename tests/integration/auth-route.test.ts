@@ -8,7 +8,9 @@ const {
   destroyAdminSessionMock,
   requireAdminSessionMock,
   createAdminInviteMock,
+  acceptAdminInviteMock,
   createPasswordResetTokenMock,
+  resetAdminPasswordMock,
   sendPasswordResetEmailMock,
   AuthConfigurationError,
 } = vi.hoisted(() => {
@@ -26,7 +28,9 @@ const {
     destroyAdminSessionMock: vi.fn(),
     requireAdminSessionMock: vi.fn(),
     createAdminInviteMock: vi.fn(),
+    acceptAdminInviteMock: vi.fn(),
     createPasswordResetTokenMock: vi.fn(),
+    resetAdminPasswordMock: vi.fn(),
     sendPasswordResetEmailMock: vi.fn(),
     AuthConfigurationError,
   };
@@ -45,8 +49,8 @@ vi.mock("@/lib/auth", () => ({
   createPasswordResetToken: createPasswordResetTokenMock,
   getAdminSessionCookieOptions: vi.fn(() => ({ httpOnly: true, sameSite: "lax", secure: false, path: "/" })),
   requireAdminSession: requireAdminSessionMock,
-  resetAdminPassword: vi.fn(),
-  acceptAdminInvite: vi.fn(),
+  resetAdminPassword: resetAdminPasswordMock,
+  acceptAdminInvite: acceptAdminInviteMock,
   createAdminInvite: createAdminInviteMock,
 }));
 
@@ -64,7 +68,9 @@ describe("auth api route", () => {
     destroyAdminSessionMock.mockReset();
     requireAdminSessionMock.mockReset();
     createAdminInviteMock.mockReset();
+    acceptAdminInviteMock.mockReset();
     createPasswordResetTokenMock.mockReset();
+    resetAdminPasswordMock.mockReset();
     sendPasswordResetEmailMock.mockReset();
     cookiesMock.mockResolvedValue({
       set: vi.fn(),
@@ -162,5 +168,41 @@ describe("auth api route", () => {
       delivery: null,
       error: "Invite links are temporarily unavailable.",
     });
+  });
+
+  it("invite accept returns a password length error", async () => {
+    acceptAdminInviteMock.mockResolvedValueOnce({
+      ok: false,
+      reason: "password-too-short",
+    });
+
+    const { POST } = await import("@/app/api/auth/[...all]/route");
+    const response = await POST(
+      new Request("http://localhost/api/auth/invite/accept", {
+        method: "POST",
+        body: JSON.stringify({ token: "token-1", password: "short" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, reason: "password-too-short" });
+  });
+
+  it("reset-password returns a password length error", async () => {
+    resetAdminPasswordMock.mockResolvedValueOnce({
+      ok: false,
+      reason: "password-too-short",
+    });
+
+    const { POST } = await import("@/app/api/auth/[...all]/route");
+    const response = await POST(
+      new Request("http://localhost/api/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ token: "token-1", password: "short" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, reason: "password-too-short" });
   });
 });

@@ -8,6 +8,7 @@ import { accounts, adminInvites, sessions, users, verificationTokens } from "@/l
 import { allowInMemoryFallback, env, hasDatabaseUrl } from "@/lib/env";
 
 export const ADMIN_SESSION_COOKIE = "gbaruction_admin_session";
+export const ADMIN_PASSWORD_MIN_LENGTH = 8;
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 3;
 const RESET_TTL_MS = 1000 * 60 * 60 * 2;
 
@@ -22,7 +23,7 @@ export type AdminSession = {
 
 export type InviteAcceptanceResult =
   | { ok: true; inviteStatus: "accepted" }
-  | { ok: false; reason: "invite-used" | "invite-expired" };
+  | { ok: false; reason: "invite-used" | "invite-expired" | "password-too-short" };
 
 export type AdminInviteRecord = {
   id: string;
@@ -90,6 +91,14 @@ export class AuthConfigurationError extends Error {
     super(message);
     this.name = "AuthConfigurationError";
   }
+}
+
+function validateAdminPassword(password: string) {
+  if (password.length < ADMIN_PASSWORD_MIN_LENGTH) {
+    return { ok: false as const, reason: "password-too-short" };
+  }
+
+  return { ok: true as const };
 }
 
 function hashPassword(password: string) {
@@ -517,6 +526,11 @@ export async function getInviteByToken(token: string): Promise<AdminInviteRecord
 }
 
 export async function acceptAdminInvite(token: string, password: string) {
+  const passwordCheck = validateAdminPassword(password);
+  if (!passwordCheck.ok) {
+    return passwordCheck;
+  }
+
   if (hasDatabaseUrl()) {
     const db = createDb();
     const [invite] = await db.select().from(adminInvites).where(eq(adminInvites.token, token));
@@ -678,6 +692,11 @@ export async function getPasswordResetTokenRecord(token: string) {
 }
 
 export async function resetAdminPassword(token: string, password: string) {
+  const passwordCheck = validateAdminPassword(password);
+  if (!passwordCheck.ok) {
+    return passwordCheck;
+  }
+
   if (hasDatabaseUrl()) {
     const db = createDb();
     const [record] = await db.select().from(verificationTokens).where(eq(verificationTokens.token, token));

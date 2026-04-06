@@ -127,6 +127,25 @@ describe("admin invite flow", () => {
     expect(freshSession?.user.email).toBe("admin@example.com");
   });
 
+  it("rejects passwords shorter than eight characters for invite acceptance and reset", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
+
+    const invite = await createAdminInvite("writer@example.com");
+    const accepted = await acceptAdminInvite(invite.token, "short");
+    const reset = await createPasswordResetToken("admin@example.com");
+    const updated = await resetAdminPassword(reset?.token ?? "", "short");
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
+
+    expect(accepted).toEqual({ ok: false, reason: "password-too-short" });
+    expect(updated).toEqual({ ok: false, reason: "password-too-short" });
+  });
+
   it("marks auth cookies secure when the auth URL is https", () => {
     const previousUrl = process.env.BETTER_AUTH_URL;
     process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
