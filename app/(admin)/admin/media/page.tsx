@@ -1,3 +1,4 @@
+import { MediaUploader } from "@/components/admin/media-uploader";
 import { listMediaAssets } from "@/lib/queries/admin/media";
 
 function formatSize(bytes: number) {
@@ -30,12 +31,9 @@ export default async function AdminMediaPage() {
         <div className="rounded-[1.75rem] border border-[var(--line)] bg-black/15 p-5">
           <div className="flex items-center justify-between border-b border-[var(--line)] pb-4">
             <h2 className="text-2xl font-bold">Recent assets</h2>
-            <button
-              type="button"
-              className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold transition-colors hover:bg-white/5"
-            >
-              Upload asset
-            </button>
+            <span className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--muted)]">
+              Auto-refresh after finalize
+            </span>
           </div>
           <div className="mt-4 divide-y divide-[var(--line)]">
             {assets.length ? assets.map((asset) => (
@@ -61,6 +59,9 @@ export default async function AdminMediaPage() {
             Uploads now follow a two-step contract: request a presigned URL first, then finalize the asset only after
             storage confirms the object exists.
           </p>
+          <div className="mt-5 border-t border-[var(--line)] pt-5">
+            <MediaUploader />
+          </div>
         </div>
       </div>
     </section>
