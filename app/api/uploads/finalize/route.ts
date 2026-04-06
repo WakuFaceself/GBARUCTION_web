@@ -3,18 +3,16 @@ import { z } from "zod";
 
 import { AdminAuthError, AuthConfigurationError, requireAdminSession } from "@/lib/auth";
 import { createMediaAssetRecord } from "@/lib/queries/admin/media";
-import { assertObjectExists, buildPublicAssetUrl, UploadObjectMissingError } from "@/lib/storage/r2";
+import {
+  buildPublicAssetUrl,
+  extractUploadedFileName,
+  getUploadedObjectMetadata,
+  UploadObjectMetadataError,
+  UploadObjectMissingError,
+} from "@/lib/storage/r2";
 
 const finalizeUploadSchema = z.object({
   objectKey: z.string().trim().min(1).max(240),
-  fileName: z
-    .string()
-    .trim()
-    .min(1)
-    .max(160)
-    .regex(/^[a-zA-Z0-9._-]+$/, "Only simple file names are allowed."),
-  contentType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
-  byteSize: z.number().int().min(1).max(10 * 1024 * 1024),
   altText: z.string().trim().max(240).optional(),
 });
 
@@ -24,12 +22,12 @@ export async function POST(request: Request) {
 
     const body = finalizeUploadSchema.parse(await request.json());
 
-    await assertObjectExists(body.objectKey);
+    const metadata = await getUploadedObjectMetadata(body.objectKey);
 
     const asset = await createMediaAssetRecord({
-      fileName: body.fileName,
-      mimeType: body.contentType,
-      byteSize: body.byteSize,
+      fileName: extractUploadedFileName(body.objectKey),
+      mimeType: metadata.contentType,
+      byteSize: metadata.byteSize,
       objectKey: body.objectKey,
       publicUrl: buildPublicAssetUrl(body.objectKey),
       altText: body.altText ?? null,
@@ -50,6 +48,10 @@ export async function POST(request: Request) {
 
     if (error instanceof UploadObjectMissingError) {
       return NextResponse.json({ ok: false, reason: "upload-not-found" }, { status: 409 });
+    }
+
+    if (error instanceof UploadObjectMetadataError) {
+      return NextResponse.json({ ok: false, reason: "invalid-upload-object" }, { status: 400 });
     }
 
     if (error instanceof z.ZodError) {

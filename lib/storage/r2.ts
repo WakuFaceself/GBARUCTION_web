@@ -10,6 +10,13 @@ export class UploadObjectMissingError extends Error {
   }
 }
 
+export class UploadObjectMetadataError extends Error {
+  constructor(objectKey: string) {
+    super(`Uploaded object metadata is incomplete or invalid: ${objectKey}`);
+    this.name = "UploadObjectMetadataError";
+  }
+}
+
 function createR2Client() {
   return new S3Client({
     region: "auto",
@@ -47,7 +54,7 @@ export async function createReadUrl(objectKey: string) {
   return getSignedUrl(client, command, { expiresIn: 60 * 5 });
 }
 
-export async function assertObjectExists(objectKey: string) {
+export async function getUploadedObjectMetadata(objectKey: string) {
   const client = createR2Client();
   const command = new HeadObjectCommand({
     Bucket: env.R2_BUCKET,
@@ -55,10 +62,40 @@ export async function assertObjectExists(objectKey: string) {
   });
 
   try {
-    await client.send(command);
-  } catch {
+    const response = await client.send(command);
+    const contentType = response.ContentType;
+    const byteSize = response.ContentLength;
+
+    if (
+      !contentType ||
+      !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(contentType) ||
+      typeof byteSize !== "number" ||
+      !Number.isFinite(byteSize) ||
+      byteSize < 1 ||
+      byteSize > 10 * 1024 * 1024
+    ) {
+      throw new UploadObjectMetadataError(objectKey);
+    }
+
+    return {
+      contentType,
+      byteSize,
+    };
+  } catch (error) {
+    if (error instanceof UploadObjectMetadataError) {
+      throw error;
+    }
+
     throw new UploadObjectMissingError(objectKey);
   }
+}
+
+export function extractUploadedFileName(objectKey: string) {
+  const lastSegment = objectKey.split("/").at(-1) ?? objectKey;
+  const dashIndex = lastSegment.indexOf("-");
+  const fileName = dashIndex >= 0 ? lastSegment.slice(dashIndex + 1) : lastSegment;
+
+  return fileName || "upload";
 }
 
 export function buildPublicAssetUrl(objectKey: string) {

@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createUploadUrlMock = vi.fn();
 const requireAdminSessionMock = vi.fn();
 const createMediaAssetRecordMock = vi.fn();
-const assertObjectExistsMock = vi.fn();
+const getUploadedObjectMetadataMock = vi.fn();
+const extractUploadedFileNameMock = vi.fn();
 const buildPublicAssetUrlMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
@@ -14,9 +15,11 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/storage/r2", () => ({
   createUploadUrl: createUploadUrlMock,
-  assertObjectExists: assertObjectExistsMock,
+  getUploadedObjectMetadata: getUploadedObjectMetadataMock,
+  extractUploadedFileName: extractUploadedFileNameMock,
   buildPublicAssetUrl: buildPublicAssetUrlMock,
   UploadObjectMissingError: class UploadObjectMissingError extends Error {},
+  UploadObjectMetadataError: class UploadObjectMetadataError extends Error {},
 }));
 
 vi.mock("@/lib/queries/admin/media", () => ({
@@ -28,7 +31,8 @@ describe("upload presign route", () => {
     createUploadUrlMock.mockReset();
     requireAdminSessionMock.mockReset();
     createMediaAssetRecordMock.mockReset();
-    assertObjectExistsMock.mockReset();
+    getUploadedObjectMetadataMock.mockReset();
+    extractUploadedFileNameMock.mockReset();
     buildPublicAssetUrlMock.mockReset();
   });
 
@@ -100,16 +104,21 @@ describe("upload finalize route", () => {
     createUploadUrlMock.mockReset();
     requireAdminSessionMock.mockReset();
     createMediaAssetRecordMock.mockReset();
-    assertObjectExistsMock.mockReset();
+    getUploadedObjectMetadataMock.mockReset();
+    extractUploadedFileNameMock.mockReset();
     buildPublicAssetUrlMock.mockReset();
   });
 
-  it("creates a media asset only after the object exists", async () => {
+  it("creates a media asset from storage metadata after the object exists", async () => {
     requireAdminSessionMock.mockResolvedValue({
       user: { id: "admin-1", email: "admin@example.com", role: "admin" },
       token: "session-token",
     });
-    assertObjectExistsMock.mockResolvedValue(undefined);
+    getUploadedObjectMetadataMock.mockResolvedValue({
+      contentType: "image/png",
+      byteSize: 1234,
+    });
+    extractUploadedFileNameMock.mockReturnValue("poster.png");
     buildPublicAssetUrlMock.mockReturnValue("https://cdn.example.com/uploads/poster.png");
     createMediaAssetRecordMock.mockResolvedValue({
       id: "asset-1",
@@ -129,9 +138,6 @@ describe("upload finalize route", () => {
         method: "POST",
         body: JSON.stringify({
           objectKey: "uploads/poster.png",
-          fileName: "poster.png",
-          contentType: "image/png",
-          byteSize: 1234,
           altText: "poster",
         }),
       }),
@@ -145,7 +151,8 @@ describe("upload finalize route", () => {
         objectKey: "uploads/poster.png",
       },
     });
-    expect(assertObjectExistsMock).toHaveBeenCalledWith("uploads/poster.png");
+    expect(getUploadedObjectMetadataMock).toHaveBeenCalledWith("uploads/poster.png");
+    expect(extractUploadedFileNameMock).toHaveBeenCalledWith("uploads/poster.png");
     expect(buildPublicAssetUrlMock).toHaveBeenCalledWith("uploads/poster.png");
     expect(createMediaAssetRecordMock).toHaveBeenCalledWith({
       fileName: "poster.png",
@@ -163,7 +170,7 @@ describe("upload finalize route", () => {
       token: "session-token",
     });
     const { UploadObjectMissingError } = await import("@/lib/storage/r2");
-    assertObjectExistsMock.mockRejectedValue(new UploadObjectMissingError("uploads/missing.png"));
+    getUploadedObjectMetadataMock.mockRejectedValue(new UploadObjectMissingError("uploads/missing.png"));
 
     const { POST } = await import("@/app/api/uploads/finalize/route");
     const response = await POST(
@@ -171,15 +178,35 @@ describe("upload finalize route", () => {
         method: "POST",
         body: JSON.stringify({
           objectKey: "uploads/missing.png",
-          fileName: "missing.png",
-          contentType: "image/png",
-          byteSize: 2048,
         }),
       }),
     );
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({ ok: false, reason: "upload-not-found" });
+    expect(createMediaAssetRecordMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects uploads whose stored metadata is invalid", async () => {
+    requireAdminSessionMock.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com", role: "admin" },
+      token: "session-token",
+    });
+    const { UploadObjectMetadataError } = await import("@/lib/storage/r2");
+    getUploadedObjectMetadataMock.mockRejectedValue(new UploadObjectMetadataError("uploads/bad-object.png"));
+
+    const { POST } = await import("@/app/api/uploads/finalize/route");
+    const response = await POST(
+      new Request("http://localhost/api/uploads/finalize", {
+        method: "POST",
+        body: JSON.stringify({
+          objectKey: "uploads/bad-object.png",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, reason: "invalid-upload-object" });
     expect(createMediaAssetRecordMock).not.toHaveBeenCalled();
   });
 
@@ -195,16 +222,13 @@ describe("upload finalize route", () => {
         method: "POST",
         body: JSON.stringify({
           objectKey: "",
-          fileName: "../poster.png",
-          contentType: "application/pdf",
-          byteSize: 0,
         }),
       }),
     );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ ok: false, reason: "invalid-upload-input" });
-    expect(assertObjectExistsMock).not.toHaveBeenCalled();
+    expect(getUploadedObjectMetadataMock).not.toHaveBeenCalled();
     expect(createMediaAssetRecordMock).not.toHaveBeenCalled();
   });
 });

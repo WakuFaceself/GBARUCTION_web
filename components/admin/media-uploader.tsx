@@ -15,6 +15,10 @@ function formatError(message: string) {
     return "The uploaded file could not be confirmed in storage yet. Please try again.";
   }
 
+  if (message === "invalid-upload-object") {
+    return "The uploaded file metadata did not match an allowed image object.";
+  }
+
   if (message === "unauthorized") {
     return "Your admin session expired. Please log in again.";
   }
@@ -105,9 +109,6 @@ export function MediaUploader() {
         },
         body: JSON.stringify({
           objectKey: presignPayload.objectKey,
-          fileName: presignPayload.fileName,
-          contentType: presignPayload.contentType,
-          byteSize: presignPayload.byteSize,
           altText: presignPayload.altText ?? undefined,
         }),
       });
