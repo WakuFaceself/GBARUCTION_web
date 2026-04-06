@@ -49,7 +49,7 @@ describe("auth api route", () => {
       email: "admin@example.com",
       token: "secret-token",
       expiresAt: new Date("2026-04-06T12:00:00.000Z"),
-      resetUrl: "/admin/reset-password/secret-token",
+      resetUrl: "https://admin.gbaruction.example/admin/reset-password/secret-token",
     });
     sendPasswordResetEmailMock.mockResolvedValue({
       ok: true,
@@ -70,6 +70,9 @@ describe("auth api route", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(sendPasswordResetEmailMock).toHaveBeenCalledWith("admin@example.com", "/admin/reset-password/secret-token");
+    expect(sendPasswordResetEmailMock).toHaveBeenCalledWith(
+      "admin@example.com",
+      "https://admin.gbaruction.example/admin/reset-password/secret-token",
+    );
   });
 });

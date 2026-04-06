@@ -45,6 +45,42 @@ describe("admin invite flow", () => {
     expect(session?.user.email).toBe("writer@example.com");
   });
 
+  it("builds absolute invite and reset URLs from the auth base URL", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
+    globalThis.__gbaructionAuthStore = undefined;
+
+    const invite = await createAdminInvite("writer@example.com");
+    const reset = await createPasswordResetToken("admin@example.com");
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
+
+    expect(invite.inviteUrl).toBe(`https://admin.gbaruction.example/admin/invite/${invite.token}`);
+    expect(reset?.resetUrl).toBe(`https://admin.gbaruction.example/admin/reset-password/${reset?.token}`);
+  });
+
+  it("falls back to localhost for absolute auth URLs when the base URL is unset", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    delete process.env.BETTER_AUTH_URL;
+    globalThis.__gbaructionAuthStore = undefined;
+
+    const invite = await createAdminInvite("writer@example.com");
+    const reset = await createPasswordResetToken("admin@example.com");
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
+
+    expect(invite.inviteUrl.startsWith("http://localhost:3000/")).toBe(true);
+    expect(reset?.resetUrl.startsWith("http://localhost:3000/")).toBe(true);
+  });
+
   it("resets the seeded admin password and invalidates the old one", async () => {
     const reset = await createPasswordResetToken("admin@example.com");
     const result = await resetAdminPassword(reset?.token ?? "", "new-admin-password");

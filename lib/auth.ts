@@ -157,8 +157,16 @@ function buildInviteStatus(consumedAt: Date | null, expiresAt: Date): AdminInvit
   return "pending";
 }
 
+function getAuthBaseUrl() {
+  return process.env.BETTER_AUTH_URL ?? env.BETTER_AUTH_URL ?? "http://localhost:3000";
+}
+
+function buildAbsoluteAuthUrl(path: string) {
+  return new URL(path, getAuthBaseUrl()).toString();
+}
+
 function buildInviteUrl(token: string) {
-  return `/admin/invite/${token}`;
+  return buildAbsoluteAuthUrl(`/admin/invite/${token}`);
 }
 
 export function acceptInvite(consumedAt: Date | null, expiresAt: Date): InviteAcceptanceResult {
@@ -603,7 +611,7 @@ export async function createPasswordResetToken(email: string) {
       email: normalizedEmail,
       token,
       expiresAt,
-      resetUrl: `/admin/reset-password/${token}`,
+      resetUrl: buildAbsoluteAuthUrl(`/admin/reset-password/${token}`),
     };
   }
 
@@ -624,7 +632,7 @@ export async function createPasswordResetToken(email: string) {
     email: normalizedEmail,
     token,
     expiresAt,
-    resetUrl: `/admin/reset-password/${token}`,
+    resetUrl: buildAbsoluteAuthUrl(`/admin/reset-password/${token}`),
   };
 }
 
