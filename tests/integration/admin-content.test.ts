@@ -1,8 +1,83 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { recommendations } from "@/lib/db/schema/content";
+
+const { hasDatabaseUrlMock, createDbMock, updateSetMock } = vi.hoisted(() => {
+  const hasDatabaseUrlMock = vi.fn(() => false);
+  const updateSetMock = vi.fn();
+  const existingRecommendationRow = {
+    id: "existing-published-record",
+    slug: "midnight-drive",
+    status: "published",
+    titleZh: "午夜公路",
+    titleEn: "Midnight Drive",
+    summaryZh: "一张适合夜行的合成器推荐。",
+    summaryEn: "A synth-heavy recommendation for late-night driving.",
+    bodyBlocks: [{ id: "body-intro", type: "richText", data: { content: "old" } }],
+    bodyLanguage: "zh",
+    subjectName: "Neon Pulse",
+    embedProvider: null,
+    embedUrl: null,
+    externalLinks: [],
+    coverAssetId: null,
+    seoTitleZh: null,
+    seoTitleEn: null,
+    seoDescriptionZh: null,
+    seoDescriptionEn: null,
+    publishedAt: new Date("2026-04-02T08:00:00.000Z"),
+    updatedAt: new Date("2026-04-03T08:00:00.000Z"),
+  };
+  const dbMock = {
+    select: vi.fn((selection?: Record<string, unknown>) => {
+      if (selection && "contentId" in selection) {
+        return {
+          from: vi.fn(() => ({
+            innerJoin: vi.fn(() => ({
+              where: vi.fn(async () => []),
+            })),
+          })),
+        };
+      }
+
+      return {
+        from: vi.fn((table: unknown) => {
+          if (table === recommendations) {
+            return {
+              where: vi.fn(async () => [existingRecommendationRow]),
+            };
+          }
+
+          return {
+            where: vi.fn(async () => []),
+          };
+        }),
+      };
+    }),
+    update: vi.fn(() => ({
+      set: updateSetMock,
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(async () => undefined),
+    })),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn(async () => [{ id: "new-record" }]),
+      })),
+    })),
+  };
+
+  const createDbMock = vi.fn(() => dbMock);
+
+  return { hasDatabaseUrlMock, createDbMock, updateSetMock };
+});
+
 vi.mock("@/lib/env", () => ({
-  hasDatabaseUrl: () => false,
+  hasDatabaseUrl: hasDatabaseUrlMock,
   env: {},
+}));
+
+vi.mock("@/lib/db/client", () => ({
+  createDb: createDbMock,
 }));
 
 import { saveAdminContentRecord, type AdminContentType } from "@/lib/queries/admin/content";
@@ -10,6 +85,9 @@ import { createMediaAssetRecord } from "@/lib/queries/admin/media";
 
 describe("admin content validation", () => {
   beforeEach(() => {
+    hasDatabaseUrlMock.mockReturnValue(false);
+    createDbMock.mockClear();
+    updateSetMock.mockClear();
     globalThis.__gbaructionAdminStore = undefined;
     globalThis.__gbaructionMediaStore = undefined;
   });
@@ -102,5 +180,46 @@ describe("admin content validation", () => {
         },
       }),
     ).rejects.toMatchObject({ code: "invalid-body-blocks" });
+  });
+
+  it("preserves an existing publishedAt when republishing an edited record", async () => {
+    hasDatabaseUrlMock.mockReturnValue(true);
+
+    updateSetMock.mockImplementation((values: Record<string, unknown>) => ({
+      where: vi.fn(() => ({
+        returning: vi.fn(async () => [
+          {
+            id: "existing-published-record",
+            slug: values.slug,
+            status: values.status,
+            publishedAt: values.publishedAt,
+          },
+        ]),
+      })),
+    }));
+
+    const record = await saveAdminContentRecord({
+      type: "recommendations",
+      id: "existing-published-record",
+      status: "published",
+      fields: {
+        slug: "midnight-drive",
+        titleZh: "午夜公路（更新）",
+        titleEn: "Midnight Drive Updated",
+        summaryZh: "更新后的摘要。",
+        summaryEn: "Updated summary.",
+        subjectName: "Neon Pulse",
+        bodyLanguage: "zh",
+        bodyBlocks: '[{"id":"body-intro","type":"richText","data":{"content":"updated"}}]',
+      },
+    });
+
+    expect(updateSetMock).toHaveBeenCalledTimes(1);
+    expect(updateSetMock.mock.calls[0]?.[0]).toMatchObject({
+      publishedAt: new Date("2026-04-02T08:00:00.000Z"),
+      status: "published",
+      slug: "midnight-drive",
+    });
+    expect(record.publishedAt).toBe("2026-04-02T08:00:00.000Z");
   });
 });

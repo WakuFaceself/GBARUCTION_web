@@ -709,6 +709,35 @@ async function getAdminContentFromDb(type: AdminContentType, id: string) {
   }
 }
 
+async function getAdminContentPublishedAtFromDb(type: AdminContentType, id: string) {
+  const db = createDb();
+
+  switch (type) {
+    case "recommendations": {
+      const [row] = await db
+        .select({ publishedAt: recommendations.publishedAt })
+        .from(recommendations)
+        .where(eq(recommendations.id, id));
+      return row?.publishedAt ?? null;
+    }
+    case "shows": {
+      const [row] = await db.select({ publishedAt: shows.publishedAt }).from(shows).where(eq(shows.id, id));
+      return row?.publishedAt ?? null;
+    }
+    case "interviews": {
+      const [row] = await db
+        .select({ publishedAt: interviews.publishedAt })
+        .from(interviews)
+        .where(eq(interviews.id, id));
+      return row?.publishedAt ?? null;
+    }
+    case "pages": {
+      const [row] = await db.select({ publishedAt: pages.publishedAt }).from(pages).where(eq(pages.id, id));
+      return row?.publishedAt ?? null;
+    }
+  }
+}
+
 async function saveAdminContentRecordToDb({
   type,
   id,
@@ -722,7 +751,6 @@ async function saveAdminContentRecordToDb({
 }) {
   const db = createDb();
   const now = new Date();
-  const publishedAt = status === "published" ? now : null;
   const bodyBlocks = parseBodyBlocksInput(fields.bodyBlocks);
   const slug = normalizeSlugInput(fields.slug, type.slice(0, -1), now);
   const coverAssetId = fields.coverAssetId?.trim() || null;
@@ -737,6 +765,9 @@ async function saveAdminContentRecordToDb({
       throw new AdminContentValidationError("invalid-cover-asset", "Selected cover asset does not exist.");
     }
   }
+
+  const currentPublishedAt = id ? await getAdminContentPublishedAtFromDb(type, id) : null;
+  const publishedAt = status === "published" ? currentPublishedAt ?? now : currentPublishedAt;
 
   switch (type) {
     case "recommendations": {
