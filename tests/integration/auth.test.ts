@@ -146,6 +146,50 @@ describe("admin invite flow", () => {
     expect(updated).toEqual({ ok: false, reason: "password-too-short" });
   });
 
+  it("prioritizes invite state over password length for a used invite", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
+
+    const invite = await createAdminInvite("writer@example.com");
+    await acceptAdminInvite(invite.token, "writer-password");
+    const reused = await acceptAdminInvite(invite.token, "short");
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
+
+    expect(reused).toEqual({ ok: false, reason: "invite-used" });
+  });
+
+  it("prioritizes reset token state over password length for an expired token", async () => {
+    const previousUrl = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";
+
+    const reset = await createPasswordResetToken("admin@example.com");
+    const store = globalThis.__gbaructionAuthStore;
+    if (!store) {
+      throw new Error("expected auth store");
+    }
+
+    const record = store.verificationTokens.find((item) => item.token === reset?.token);
+    if (!record) {
+      throw new Error("expected reset token");
+    }
+    record.expiresAt = new Date(Date.now() - 60_000);
+
+    const expired = await resetAdminPassword(reset?.token ?? "", "short");
+
+    if (previousUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = previousUrl;
+    }
+
+    expect(expired).toEqual({ ok: false, reason: "token-expired" });
+  });
+
   it("marks auth cookies secure when the auth URL is https", () => {
     const previousUrl = process.env.BETTER_AUTH_URL;
     process.env.BETTER_AUTH_URL = "https://admin.gbaruction.example";

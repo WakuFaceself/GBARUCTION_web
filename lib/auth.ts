@@ -526,11 +526,6 @@ export async function getInviteByToken(token: string): Promise<AdminInviteRecord
 }
 
 export async function acceptAdminInvite(token: string, password: string) {
-  const passwordCheck = validateAdminPassword(password);
-  if (!passwordCheck.ok) {
-    return passwordCheck;
-  }
-
   if (hasDatabaseUrl()) {
     const db = createDb();
     const [invite] = await db.select().from(adminInvites).where(eq(adminInvites.token, token));
@@ -542,6 +537,11 @@ export async function acceptAdminInvite(token: string, password: string) {
     const acceptance = acceptInvite(invite.consumedAt, invite.expiresAt);
     if (!acceptance.ok) {
       return { ok: false as const, reason: acceptance.reason };
+    }
+
+    const passwordCheck = validateAdminPassword(password);
+    if (!passwordCheck.ok) {
+      return passwordCheck;
     }
 
     const passwordHash = hashPassword(password);
@@ -587,6 +587,11 @@ export async function acceptAdminInvite(token: string, password: string) {
   const acceptance = acceptInvite(invite.consumedAt, invite.expiresAt);
   if (!acceptance.ok) {
     return { ok: false as const, reason: acceptance.reason };
+  }
+
+  const passwordCheck = validateAdminPassword(password);
+  if (!passwordCheck.ok) {
+    return passwordCheck;
   }
 
   invite.consumedAt = new Date();
@@ -692,11 +697,6 @@ export async function getPasswordResetTokenRecord(token: string) {
 }
 
 export async function resetAdminPassword(token: string, password: string) {
-  const passwordCheck = validateAdminPassword(password);
-  if (!passwordCheck.ok) {
-    return passwordCheck;
-  }
-
   if (hasDatabaseUrl()) {
     const db = createDb();
     const [record] = await db.select().from(verificationTokens).where(eq(verificationTokens.token, token));
@@ -713,6 +713,11 @@ export async function resetAdminPassword(token: string, password: string) {
     if (!user) {
       await db.delete(verificationTokens).where(eq(verificationTokens.id, record.id));
       return { ok: false as const, reason: "token-not-found" };
+    }
+
+    const passwordCheck = validateAdminPassword(password);
+    if (!passwordCheck.ok) {
+      return passwordCheck;
     }
 
     const passwordHash = hashPassword(password);
@@ -746,6 +751,11 @@ export async function resetAdminPassword(token: string, password: string) {
   const user = store.users.find((item) => item.email === record.identifier);
   if (!user) {
     return { ok: false as const, reason: "token-not-found" };
+  }
+
+  const passwordCheck = validateAdminPassword(password);
+  if (!passwordCheck.ok) {
+    return passwordCheck;
   }
 
   user.passwordHash = hashPassword(password);
