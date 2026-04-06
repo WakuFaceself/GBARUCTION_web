@@ -44,7 +44,7 @@ export default async function PosterLabPage({
           <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">
             {locale === "zh" ? "概念入口" : "concept gate"}
           </p>
-          <h1 className="max-w-3xl text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] sm:text-7xl">
+          <h1 className="max-w-3xl break-words text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] [overflow-wrap:anywhere] sm:text-7xl">
             {page.item.title[locale]}
           </h1>
           <p className="max-w-2xl text-lg leading-8 text-[#d9cabd]">
@@ -55,7 +55,7 @@ export default async function PosterLabPage({
           <p className="text-xs uppercase tracking-[0.4em] text-[#ffd2c0]">
             {locale === "zh" ? "状态" : "status"}
           </p>
-          <p className="text-xl font-black uppercase tracking-[0.08em] text-[#fff6ee]">
+          <p className="break-words text-xl font-black uppercase tracking-[0.08em] text-[#fff6ee] [overflow-wrap:anywhere]">
             {locale === "zh" ? "尚未开放" : "not live yet"}
           </p>
           <p className="text-sm leading-7 text-[#f2ddcf]">
@@ -99,7 +99,7 @@ export default async function PosterLabPage({
       <div className="flex flex-wrap items-center gap-3">
         <Link
           href={`/${locale}/recommend`}
-          className="rounded-full border border-[#ff8a63]/40 bg-[#ff8a63]/10 px-4 py-2 text-sm uppercase tracking-[0.25em] text-[#ffd7c7]"
+          className="max-w-full rounded-full border border-[#ff8a63]/40 bg-[#ff8a63]/10 px-4 py-2 text-sm uppercase tracking-[0.25em] text-[#ffd7c7] [overflow-wrap:anywhere]"
         >
           {locale === "zh" ? "回到推荐" : "Back to recommendations"}
         </Link>

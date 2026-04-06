@@ -38,7 +38,7 @@ export default async function InterviewsPage({
         <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">
           {locale === "zh" ? "采访入口" : "interview window"}
         </p>
-        <h1 className="mt-3 text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] sm:text-7xl">
+        <h1 className="mt-3 break-words text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] [overflow-wrap:anywhere] sm:text-7xl">
           {locale === "zh" ? "采访" : "Interviews"}
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-[#d9cabd]">

@@ -63,7 +63,7 @@ export default async function LocaleHome({
       <section className="grid gap-8 border border-white/10 bg-white/5 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.35)] lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
         <div className="space-y-6">
           <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">{`${siteSettings.siteTitle} label magazine`}</p>
-          <h1 className="max-w-4xl text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] sm:text-7xl">
+          <h1 className="max-w-4xl break-words text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] [overflow-wrap:anywhere] sm:text-7xl">
             {heroTitle}
           </h1>
           <p className="max-w-2xl text-base leading-8 text-[#d7c9ba] sm:text-lg">{blurb}</p>

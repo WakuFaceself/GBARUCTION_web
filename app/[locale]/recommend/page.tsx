@@ -40,7 +40,7 @@ export default async function RecommendPage({
           <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">
             {locale === "zh" ? "推荐优先" : "recommendation first"}
           </p>
-          <h1 className="max-w-3xl text-5xl font-black uppercase leading-[0.9] tracking-[0.08em] sm:text-7xl">
+          <h1 className="max-w-3xl break-words text-5xl font-black uppercase leading-[0.9] tracking-[0.08em] [overflow-wrap:anywhere] sm:text-7xl">
             {locale === "zh" ? "推荐" : "Recommendations"}
           </h1>
           <p className="max-w-2xl text-lg leading-8 text-[#d9cabd]">
@@ -54,7 +54,7 @@ export default async function RecommendPage({
             <p className="text-xs uppercase tracking-[0.4em] text-[#ffd2c0]">
               {locale === "zh" ? "本期封面" : "current cover"}
             </p>
-            <p className="mt-4 text-3xl font-black uppercase tracking-[0.08em] text-[#fff5eb]">
+            <p className="mt-4 break-words text-3xl font-black uppercase tracking-[0.08em] text-[#fff5eb] [overflow-wrap:anywhere]">
               {hero.displayTitle}
             </p>
             <p className="mt-2 text-sm leading-7 text-[#f2ddcf]">

@@ -43,7 +43,7 @@ export default async function SearchPage({
         <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">
           {locale === "zh" ? "搜索" : "search"}
         </p>
-        <h1 className="mt-3 text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] sm:text-7xl">
+        <h1 className="mt-3 break-words text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] [overflow-wrap:anywhere] sm:text-7xl">
           {locale === "zh" ? "搜索" : "Search"}
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-[#d9cabd]">
@@ -83,7 +83,7 @@ export default async function SearchPage({
                 >
                   <Link
                     href={`/${locale}/${item.kind === "recommendation" ? "recommend" : item.kind === "show" ? "shows" : "interviews"}/${item.slug}`}
-                    className="text-2xl font-black uppercase tracking-[0.08em]"
+                    className="break-words text-2xl font-black uppercase tracking-[0.08em] [overflow-wrap:anywhere]"
                   >
                     {item.displayTitle}
                   </Link>

@@ -15,13 +15,13 @@ export function ContentDetail({
   collection: "recommend" | "shows" | "interviews";
 }) {
   return (
-    <article className="grid gap-8 pb-16 pt-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
-      <section className="space-y-6">
+    <article className="grid min-w-0 gap-8 pb-16 pt-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+      <section className="min-w-0 space-y-6">
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">
             {collection}
           </p>
-          <h1 className="max-w-4xl text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] sm:text-7xl">
+          <h1 className="max-w-4xl break-words text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] [overflow-wrap:anywhere] sm:text-7xl">
             {item.title[locale]}
           </h1>
           <p className="max-w-3xl text-lg leading-8 text-[#d7c9ba]">
@@ -56,7 +56,7 @@ export function ContentDetail({
         </div>
       </section>
 
-      <aside className="space-y-4 border border-white/10 bg-black/20 p-5">
+      <aside className="min-w-0 space-y-4 border border-white/10 bg-black/20 p-5">
         <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">
           {locale === "zh" ? "快照" : "snapshot"}
         </p>
@@ -66,7 +66,7 @@ export function ContentDetail({
             {item.tags.map((tag) => (
               <span
                 key={tag}
-                className="mr-2 inline-flex rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.22em]"
+                className="mr-2 inline-flex max-w-full rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.22em] [overflow-wrap:anywhere]"
               >
                 {tag}
               </span>
@@ -86,7 +86,7 @@ export function ContentDetail({
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="rounded-full border border-[#ff8a63]/30 px-3 py-2 text-xs uppercase tracking-[0.25em] text-[#ffd1be]"
+                  className="max-w-full rounded-full border border-[#ff8a63]/30 px-3 py-2 text-xs uppercase tracking-[0.25em] text-[#ffd1be] [overflow-wrap:anywhere]"
                 >
                   {link.label}
                 </Link>

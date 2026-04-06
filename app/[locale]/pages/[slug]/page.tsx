@@ -45,7 +45,7 @@ export default async function ManagedPageRoute({
         <p className="text-xs uppercase tracking-[0.45em] text-[#d7c9ba]">
           {locale === "zh" ? "专题页面" : "managed page"}
         </p>
-        <h1 className="max-w-4xl text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] sm:text-7xl">
+        <h1 className="max-w-4xl break-words text-5xl font-black uppercase leading-[0.92] tracking-[0.08em] [overflow-wrap:anywhere] sm:text-7xl">
           {page.item.title[locale]}
         </h1>
         <p className="max-w-3xl text-lg leading-8 text-[#d9cabd]">{page.item.summary[locale]}</p>
